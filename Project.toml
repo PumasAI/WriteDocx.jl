@@ -15,6 +15,7 @@ EnumX = "1"
 EzXML = "1"
 MacroTools = "0.5"
 OrderedCollections = "1"
+ZipFile = "0.10"
 julia = "1.6"
 
 [extras]
