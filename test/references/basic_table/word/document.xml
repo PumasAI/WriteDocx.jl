@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+  <w:body>
+    <w:tbl>
+      <w:tblPr>
+        <w:tblCellMar>
+          <w:top w:w="100"/>
+          <w:bottom w:w="120"/>
+          <w:start w:w="140"/>
+          <w:end w:w="160"/>
+        </w:tblCellMar>
+      </w:tblPr>
+      <w:tr>
+        <w:trPr/>
+        <w:tc>
+          <w:tcPr>
+            <w:tcBorders>
+              <w:bottom w:val="single" w:color="000000"/>
+              <w:top w:val="single" w:color="000000"/>
+              <w:end w:val="single" w:color="000000"/>
+              <w:start w:val="single" w:color="000000"/>
+            </w:tcBorders>
+            <w:vMerge w:val="restart"/>
+            <w:vAlign w:val="center"/>
+          </w:tcPr>
+          <w:p>
+            <w:pPr/>
+            <w:r>
+              <w:rPr/>
+              <w:t>Vertically Merged</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcBorders>
+              <w:bottom w:val="single" w:color="00FF00" w:sz="6"/>
+              <w:top w:val="single" w:color="FF0000" w:sz="2"/>
+              <w:end w:val="single" w:color="FF00FF" w:shadow="true" w:sz="16"/>
+              <w:start w:val="single" w:color="0000FF" w:sz="12"/>
+            </w:tcBorders>
+            <w:gridSpan w:val="2"/>
+          </w:tcPr>
+          <w:p>
+            <w:pPr/>
+            <w:r>
+              <w:rPr/>
+              <w:t>Horizontally Merged</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr/>
+        <w:tc>
+          <w:tcPr>
+            <w:tcBorders>
+              <w:bottom w:val="single" w:color="000000"/>
+              <w:top w:val="single" w:color="000000"/>
+              <w:end w:val="single" w:color="000000"/>
+              <w:start w:val="single" w:color="000000"/>
+            </w:tcBorders>
+            <w:vMerge w:val="continue"/>
+          </w:tcPr>
+          <w:p>
+            <w:pPr/>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcMar>
+              <w:top w:w="100"/>
+              <w:bottom w:w="200"/>
+              <w:start w:w="300"/>
+              <w:end w:w="400"/>
+            </w:tcMar>
+          </w:tcPr>
+          <w:p>
+            <w:pPr/>
+            <w:r>
+              <w:rPr/>
+              <w:t>Normal Cell 1</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr/>
+          <w:p>
+            <w:pPr/>
+            <w:r>
+              <w:rPr/>
+              <w:t>Normal Cell 2</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+    </w:tbl>
+    <w:sectPr/>
+  </w:body>
+</w:document>

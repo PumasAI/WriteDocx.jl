@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+  <w:body>
+    <w:tbl>
+      <w:tblPr>
+        <w:jc w:val="start"/>
+      </w:tblPr>
+      <w:tr>
+        <w:trPr/>
+        <w:tc>
+          <w:tcPr/>
+          <w:p>
+            <w:pPr/>
+            <w:r>
+              <w:rPr/>
+              <w:t>start</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+    </w:tbl>
+    <w:p>
+      <w:pPr/>
+    </w:p>
+    <w:tbl>
+      <w:tblPr>
+        <w:jc w:val="center"/>
+      </w:tblPr>
+      <w:tr>
+        <w:trPr/>
+        <w:tc>
+          <w:tcPr/>
+          <w:p>
+            <w:pPr/>
+            <w:r>
+              <w:rPr/>
+              <w:t>center</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+    </w:tbl>
+    <w:p>
+      <w:pPr/>
+    </w:p>
+    <w:tbl>
+      <w:tblPr>
+        <w:jc w:val="end"/>
+      </w:tblPr>
+      <w:tr>
+        <w:trPr/>
+        <w:tc>
+          <w:tcPr/>
+          <w:p>
+            <w:pPr/>
+            <w:r>
+              <w:rPr/>
+              <w:t>stop</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+    </w:tbl>
+    <w:p>
+      <w:pPr/>
+    </w:p>
+    <w:sectPr/>
+  </w:body>
+</w:document>

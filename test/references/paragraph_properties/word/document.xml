@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+  <w:body>
+    <w:p>
+      <w:pPr>
+        <w:jc w:val="distribute"/>
+        <w:pBdr>
+          <w:left w:val="double" w:sz="16"/>
+          <w:top w:val="single" w:sz="8"/>
+          <w:right w:val="triple" w:sz="20"/>
+          <w:bottom w:val="wave" w:sz="12"/>
+        </w:pBdr>
+      </w:pPr>
+      <w:r>
+        <w:rPr/>
+        <w:t>Some test text</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:pPr>
+        <w:shd w:val="diagCross" w:color="FFDDDD" w:fill="002255"/>
+      </w:pPr>
+      <w:r>
+        <w:rPr/>
+        <w:t>Some test text</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:pPr>
+        <w:shd w:val="clear" w:color="auto" w:fill="EEEEEE"/>
+      </w:pPr>
+      <w:r>
+        <w:rPr/>
+        <w:t>Some test text</w:t>
+      </w:r>
+    </w:p>
+    <w:sectPr/>
+  </w:body>
+</w:document>

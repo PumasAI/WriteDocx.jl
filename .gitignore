@@ -1,0 +1,7 @@
+/Manifest.toml
+/docs/build/
+/docs/Manifest.toml
+.DS_Store
+*.docx
+test/Manifest.toml
+scratch
