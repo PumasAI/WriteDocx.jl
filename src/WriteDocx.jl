@@ -1676,7 +1676,9 @@ end
 
 function to_xml(i::InlineDrawing, rels)
 
-    (; ablip, index) = get_ablip(i, rels)
+    a = get_ablip(i, rels)
+    ablip = a.ablip
+    index = a.index
 
     name = "Picture $index" # it seems not to matter to reuse `index` here
 
