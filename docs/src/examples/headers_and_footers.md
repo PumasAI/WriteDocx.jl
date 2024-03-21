@@ -30,5 +30,5 @@ W.save("headers_and_footers.docx", doc)
 Download `headers_and_footers.docx`:
 
 ```@raw html
-<a href="headers_and_footers.docx"><img src="./../../assets/icon_docx.png" width="60">
+<a href="../headers_and_footers.docx"><img src="./../../assets/icon_docx.png" width="60">
 ```
