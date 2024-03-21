@@ -46,5 +46,5 @@ W.save("table.docx", doc)
 Download `table.docx`:
 
 ```@raw html
-<a href="table.docx"><img src="./../../assets/icon_docx.png" width="60">
+<a href="../table.docx"><img src="./../../assets/icon_docx.png" width="60">
 ```

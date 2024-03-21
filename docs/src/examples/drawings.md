@@ -32,5 +32,5 @@ W.save("inline_drawing.docx", doc)
 Download `inline_drawing.docx`:
 
 ```@raw html
-<a href="inline_drawing.docx"><img src="./../../assets/icon_docx.png" width="60">
+<a href="../inline_drawing.docx"><img src="./../../assets/icon_docx.png" width="60">
 ```
