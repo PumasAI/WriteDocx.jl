@@ -27,12 +27,12 @@ jobs:
         arch:
           - x64
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           persist-credentials: false
-      - uses: julia-actions/setup-julia@81d42b556a18b0d67455a742fcbffdeb49b3ffb0
+      - uses: julia-actions/setup-julia@81d42b556a18b0d67455a742fcbffdeb49b3ffb0 # v2.1.0
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
-      - uses: julia-actions/julia-buildpkg@90dd6f23eb49626e4e6612cb9d64d456f86e6a1c
+      - uses: julia-actions/julia-buildpkg@90dd6f23eb49626e4e6612cb9d64d456f86e6a1c # v1.6.0
       - uses: julia-actions/julia-runtest@79a7e100883947123f8263c5f06e6c0ea3eb972f
