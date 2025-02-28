@@ -77,6 +77,18 @@ function reftest_docx(doc::W.Document, reference_name)
     return
 end
 
+struct SVG
+    svg::String
+end
+
+Base.show(io::IO, ::MIME"image/svg+xml", s::SVG) = print(io, s.svg)
+
+struct PNG
+    bytes::Vector{UInt8}
+end
+
+Base.show(io::IO, ::MIME"image/png", p::PNG) = write(io, p.bytes)
+
 @testset "WriteDocx.jl" begin
     @testset "Basic document" begin
         doc = W.Document(
@@ -631,6 +643,51 @@ end
         )
 
         reftest_docx(doc, "inline_drawing_svg_with_png_fallback")
+    end
+
+    @testset "Inline drawings with showable objects" begin
+
+        svg = W.Image(MIME"image/svg+xml"(), SVG(read(joinpath(@__DIR__, "pumas.svg"), String)))
+        png = W.Image(MIME"image/png"(), PNG(read(joinpath(@__DIR__, "pumas.png"))))
+
+        doc = d = W.Document(
+            W.Body(
+                [
+                    W.Section(
+                        [
+                            W.Paragraph(
+                                [
+                                    W.Run(
+                                        [
+                                            W.InlineDrawing(svg, 700_000W.emu, 300_000W.emu),
+                                        ],
+                                    ),
+                                    W.Run(
+                                        [
+                                            W.InlineDrawing(png, 5W.cm, 1.2W.inch),
+                                        ],
+                                    ),
+                                    W.Run(
+                                        [
+                                            W.InlineDrawing(
+                                                W.SVGWithPNGFallback(
+                                                    svg = svg,
+                                                    png = png,
+                                                ),
+                                                700_000W.emu,
+                                                300_000W.emu
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            )
+                        ]
+                    )
+                ]
+            )
+        )
+
+        reftest_docx(doc, "inline_drawings_with_showable_objects")
     end
 
     @testset "Multiple sections" begin
