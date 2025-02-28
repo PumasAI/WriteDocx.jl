@@ -480,6 +480,57 @@ Base.@kwdef struct TableLevelCellMargins
     stop::Maybe{Twip} = nothing
 end
 
+struct Path
+    path::String
+end
+
+"""
+    Image(m::MIME, object)
+
+Represents an image of MIME type `m` that can be written to an appropriate file
+when writing out a docx document. The `object` needs to have a `show` method
+for `m` defined for the default behavior to work.
+"""
+struct Image{MIME,T}
+    m::MIME
+    object::T
+end
+
+"""
+    Image(path::String)
+
+Create an `Image` pointing to the file at `path`. The MIME type is determined by file extension.
+"""
+Image(path::String) = Image(Path(path))
+Image(i::Image) = i
+
+function Image(path::Path)
+    if endswith(path.path, r"\.svg"i)
+        Image(MIME"image/svg+xml"(), path)
+    elseif endswith(path.path, r"\.png"i)
+        Image(MIME"image/png"(), path)
+    else
+        throw(ArgumentError("Unknown image file extension, only .svg and .png are allowed. Path was \"$(path.path)\""))
+    end
+end
+
+# avoid writing file again which is already given as a path
+function get_image_file(i::Image{M,Path}, tempdir) where M
+    return i.object.path
+end
+
+file_extension(::Type{MIME"image/svg+xml"}) = "svg"
+file_extension(::Type{MIME"image/png"}) = "png"
+
+function get_image_file(i::Image{M}, tempdir) where M
+    ext = file_extension(M)
+    filepath = joinpath(tempdir, "temp.$(ext)")
+    open(filepath, "w") do io
+        Base.show(io::IO, M(), i.object)
+    end
+    return filepath
+end
+
 """
     InlineDrawing{T}(; image::T, width::EMU, height::EMU)
 
@@ -487,26 +538,46 @@ Create an `InlineDrawing` object which, as the name implies, can be placed inlin
 text inside [`Run`](@ref)s.
 
 WriteDocx supports different types `T` for the `image` argument.
-If `T` is a `String`, `image` is treated as the file path to a .png or .svg image.
+If `T` is a `String`, `image` is treated as the file path to an existing .png or .svg image.
+You can pass an `Image` object which can hold a reference to an object that can be written
+to a file with the desired MIME type at render time.
 You can also use [`SVGWithPNGFallback`](@ref) to place .svg images with better fallback behavior.
 
 Width and height of the placed image are set via `width` and `height`, note that you have to
 determine these values yourself for any image you place, a correct aspect ratio will not
 be determined automatically.
 """
-Base.@kwdef struct InlineDrawing{T}
+struct InlineDrawing{T}
     image::T
     width::EMU
     height::EMU
 end
 
+function InlineDrawing(; image, width, height)
+    InlineDrawing(image, width, height)
+end
+
+InlineDrawing(image::T, width, height) where T = InlineDrawing{T}(image, convert(EMU, width), convert(EMU, height))
+
+# backwards-compatibility, interpret String as path to an image
+function InlineDrawing(path::AbstractString, width, height)
+    InlineDrawing(Image(path), width, height)
+end
+
+# fix ambiguity
+function InlineDrawing(path::AbstractString, width::EMU, height::EMU)
+    InlineDrawing(Image(path), width, height)
+end
+
 is_inline_element(::Type{<:InlineDrawing}) = true
 
 """
-    SVGWithPNGFallback(; svg::String, png::String)
+    SVGWithPNGFallback(; svg, png)
 
-Create a `SVGWithPNGFallback` for the svg file at path `svg` and the fallback png
-file at path `png`.
+Create a `SVGWithPNGFallback` for the svg `svg` and the fallback `png`.
+If `svg` or `png` are `AbstractString`s, they will be treated as paths to image files.
+Otherwise, they should be `Image`s with the appropriate MIME types. Use `SVGImage` and
+`PNGImage` as shortcuts to create these.
 
 Word Online and other services like Slack preview don't work when a simple svg file is added via
 [`InlineDrawing`](@ref)`{String}`.
@@ -514,23 +585,14 @@ Word Online and other services like Slack preview don't work when a simple svg f
 Note that it is your responsibility to check whether the png file is an accurate
 replacement for the svg.
 """
-struct SVGWithPNGFallback
-    svg::String # path to SVG
-    png::String # path to PNG
-    function SVGWithPNGFallback(; svg::AbstractString, png::AbstractString)
-        svg = convert(String, svg)
-        png = convert(String, png)
-        if !endswith(svg, ".svg")
-            throw(ArgumentError("SVG file needs to end with .svg, got $svg"))
-        end
-        if !endswith(png, ".png")
-            throw(ArgumentError("PNG file needs to end with .png, got $png"))
-        end
-        new(svg, png)
-    end
+struct SVGWithPNGFallback{T1,T2}
+    svg::Image{MIME"image/svg+xml",T1} # path to SVG
+    png::Image{MIME"image/png",T2} # path to PNG
 end
 
-InlineDrawing(image::T, width, height) where T = InlineDrawing{T}(image, convert(EMU, width), convert(EMU, height))
+function SVGWithPNGFallback(; svg, png)
+    SVGWithPNGFallback(Image(svg), Image(png))
+end
 
 @partialkw struct Style{T}
     id::String
@@ -1303,10 +1365,6 @@ struct Relationship
     target::String
 end
 
-struct ImageMedium{T}
-    image::T
-end
-
 struct StyleRel end
 
 function resolve_rel!(x::StyleRel, i, dir, prefix)
@@ -1316,16 +1374,18 @@ function resolve_rel!(x::StyleRel, i, dir, prefix)
     )
 end
 
-function resolve_rel!(x::ImageMedium{String}, i, dir, prefix)
-    imgpath = x.image
-    mediapath = joinpath(dir, "word", "media")
-    mkpath(mediapath)
-    _, extension = splitext(imgpath)
-    targetpath = joinpath(mediapath, "$(prefix)image_$i" * extension)
-    cp(imgpath, targetpath)
-    type = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
-    target = relpath(targetpath, joinpath(dir, "word"))
-    return Relationship(type, target)
+function resolve_rel!(x::Image, i, dir, prefix)
+    mktempdir() do tempdir
+        imgpath = get_image_file(x, tempdir)
+        mediapath = joinpath(dir, "word", "media")
+        mkpath(mediapath)
+        _, extension = splitext(imgpath)
+        targetpath = joinpath(mediapath, "$(prefix)image_$i" * extension)
+        cp(imgpath, targetpath)
+        type = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+        target = relpath(targetpath, joinpath(dir, "word"))
+        return Relationship(type, target)
+    end
 end
 
 function resolve_rel!(h::Union{Header, Footer}, i, dir, prefix)
@@ -1369,14 +1429,14 @@ end
 
 gather_rels!(rels, zipdir, ::Nothing) = nothing
 
-function gather_rels!(rels, zipdir, i::InlineDrawing{String})
-    add_rel!(rels, ImageMedium(i.image))
+function gather_rels!(rels, zipdir, i::InlineDrawing{<:Image})
+    add_rel!(rels, i.image)
     return
 end
 
-function gather_rels!(rels, zipdir, i::InlineDrawing{SVGWithPNGFallback})
-    add_rel!(rels, ImageMedium(i.image.png))
-    add_rel!(rels, ImageMedium(i.image.svg))
+function gather_rels!(rels, zipdir, i::InlineDrawing{<:SVGWithPNGFallback})
+    add_rel!(rels, i.image.png)
+    add_rel!(rels, i.image.svg)
     return
 end
 
@@ -1637,9 +1697,9 @@ xml(name, pairs::Pair{String,<:Any}...) = xml(name, [], pairs...)
 
 to_xml(xml::E.Node, _) = xml
 
-function get_ablip(i::InlineDrawing{String}, rels)
-    index = rels[ImageMedium(i.image)]
-    ablip = if endswith(i.image, r"\.svg"i)
+function get_ablip(i::InlineDrawing{<:Image{M}}, rels) where M
+    index = rels[i.image]
+    ablip = if M <: MIME"image/svg+xml"
         xml("a:blip", [
             xml("a:extLst", [
                 # this is the empty scaffolding of a png thumbnail that doesn't actually need to be there in modern Word as it seems
@@ -1650,17 +1710,17 @@ function get_ablip(i::InlineDrawing{String}, rels)
                 ], "uri" => "{96DAC541-7B7A-43D3-8B79-37D633B846F1}")
             ])
         ])
-    elseif endswith(i.image, r"\.png"i)
+    elseif M <: MIME"image/png"
         xml("a:blip", "r:embed" => "rId$index")
     else
-        error("Cannot deal with image that is not a .svg or .png.")
+        error("Cannot deal with image of MIME type $M")
     end
     return (; ablip, index)
 end
 
-function get_ablip(i::InlineDrawing{SVGWithPNGFallback}, rels)
-    index_png = rels[ImageMedium(i.image.png)]
-    index_svg = rels[ImageMedium(i.image.svg)]
+function get_ablip(i::InlineDrawing{<:SVGWithPNGFallback}, rels)
+    index_png = rels[i.image.png]
+    index_svg = rels[i.image.svg]
     ablip = 
         xml("a:blip", [
             xml("a:extLst", [
