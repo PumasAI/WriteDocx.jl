@@ -1050,6 +1050,16 @@ Base.@kwdef struct Columns
     cols::Vector{Column} = Column[]
 end
 
+Base.@kwdef struct PageMargins
+    top::Twip
+    right::Twip
+    bottom::Twip
+    left::Twip
+    header::Twip = top
+    footer::Twip = bottom
+    gutter::Twip = Twip(0)
+end
+
 """
     SectionProperties(; kwargs...)
 
@@ -1060,6 +1070,7 @@ Holds properties for a [`Section`](@ref).
 | Keyword | Description |
 | :-- | :-- |
 | `pagesize::PageSize` | The size of each page in the section. |
+| `margins::PageMargins` | The margins for each page in the section |
 | `valign::PageVerticalAlign.T` | The vertical alignment of content on each page of the section. |
 | `headers::`[`Headers`](@ref) | Defines the header content shown at the top of each page of the section. |
 | `footers::`[`Footers`](@ref) | Defines the footer content shown at the bottom of each page of the section. |
@@ -1067,6 +1078,7 @@ Holds properties for a [`Section`](@ref).
 """
 Base.@kwdef struct SectionProperties
     pagesize::Maybe{PageSize} = nothing
+    margins::Maybe{PageMargins} = nothing
     valign::Maybe{PageVerticalAlign.T} = nothing
     headers::Maybe{Headers} = nothing
     footers::Maybe{Footers} = nothing
@@ -1605,6 +1617,9 @@ function to_xml(body::Body, rels)
         if props.pagesize !== nothing
             E.link!(section_params_node, to_xml(props.pagesize, rels))
         end
+        if props.margins !== nothing
+            E.link!(section_params_node, to_xml(props.margins, rels))
+        end
         if props.valign !== nothing
             E.link!(section_params_node, to_xml(props.valign, rels))
         end
@@ -1925,6 +1940,7 @@ function attributes(t::Union{TableCellBorder, ParagraphBorder})
     return attrs
 end
 attributes(p::PageSize) = (("w:h", p.height), ("w:w", p.width), ("w:orient", p.orientation))
+attributes(p::PageMargins) = (("w:top", p.top), ("w:right", p.right), ("w:bottom", p.bottom), ("w:left", p.left), ("w:header", p.header), ("w:footer", p.footer), ("w:gutter", p.gutter))
 attributes(p::PageVerticalAlign.T) = (("w:val", p),)
 attributes(p::Justification.T) = (("w:val", p),)
 function attributes(s::Style)
@@ -2050,6 +2066,7 @@ function xmltag(t::Tuple{ParagraphBorder, Symbol})
     throw(ArgumentError("Invalid symbol $(repr(sym)), options are :top, :left, :right, :bottom, :between."))
 end
 xmltag(::PageSize) = "w:pgSz"
+xmltag(::PageMargins) = "w:pgMar"
 xmltag(::PageVerticalAlign.T) = "w:vAlign"
 xmltag(::Columns) = "w:cols"
 xmltag(::Column) = "w:col"
