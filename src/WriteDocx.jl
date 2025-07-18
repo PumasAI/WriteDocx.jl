@@ -1037,6 +1037,19 @@ Base.@kwdef struct Footers
     even::Maybe{Footer} = nothing
 end
 
+Base.@kwdef struct Column
+    width::Maybe{Twip} = nothing
+    space::Maybe{Twip} = nothing
+end
+
+Base.@kwdef struct Columns
+    equal::Bool = true
+    sep::Bool = false
+    space::Maybe{Twip} = nothing
+    num::Int = 1
+    cols::Vector{Column} = Column[]
+end
+
 """
     SectionProperties(; kwargs...)
 
@@ -1050,12 +1063,14 @@ Holds properties for a [`Section`](@ref).
 | `valign::PageVerticalAlign.T` | The vertical alignment of content on each page of the section. |
 | `headers::`[`Headers`](@ref) | Defines the header content shown at the top of each page of the section. |
 | `footers::`[`Footers`](@ref) | Defines the footer content shown at the bottom of each page of the section. |
+| `columns::`[`Columns`](@ref) | Configures the columns in the section |
 """
 Base.@kwdef struct SectionProperties
     pagesize::Maybe{PageSize} = nothing
     valign::Maybe{PageVerticalAlign.T} = nothing
     headers::Maybe{Headers} = nothing
     footers::Maybe{Footers} = nothing
+    columns::Maybe{Columns} = nothing
 end
 
 """
@@ -1593,6 +1608,9 @@ function to_xml(body::Body, rels)
         if props.valign !== nothing
             E.link!(section_params_node, to_xml(props.valign, rels))
         end
+        if props.columns !== nothing
+            E.link!(section_params_node, to_xml(props.columns, rels))
+        end
         if props.headers !== nothing
             for type in (:default, :first, :even)
                 x = getproperty(props.headers, type)
@@ -1827,6 +1845,14 @@ function children(p::ParagraphProperties)
     return c
 end
 
+function children(p::Columns)
+    c = []
+    if !p.equal
+        append!(c, p.cols)
+    end
+    return c
+end
+
 function children(p::TableCellProperties)
     c = []
     p.borders === nothing || push!(c, p.borders)
@@ -1915,6 +1941,19 @@ end
 attributes(p::ParagraphStyle) = (("w:val", p.name),)
 attributes(p::RunStyle) = (("w:val", p.name),)
 attributes(p::VerticalAlignment.T) = (("w:val", p),)
+attributes(p::Column) = (("w:w", p.width), ("w:space", p.space))
+function attributes(p::Columns)
+    attrs = Tuple{String, Any}[]
+    if p.num > 1 && p.equal
+        push!(attrs, ("w:num", p.num))
+        p.sep === false || push!(attrs, ("w:sep", p.sep))
+        p.space === nothing || push!(attrs, ("w:space", p.space))
+    elseif !p.equal
+        push!(attrs, ("w:equalWidth", p.equal))
+        p.sep === false || push!(attrs, ("w:sep", p.sep))
+    end
+    return attrs
+end
 function attributes(f::Fonts)
     attrs = Tuple{String, Any}[]
     f.ascii === nothing || push!(attrs, ("w:ascii", f.ascii))
@@ -2012,6 +2051,8 @@ function xmltag(t::Tuple{ParagraphBorder, Symbol})
 end
 xmltag(::PageSize) = "w:pgSz"
 xmltag(::PageVerticalAlign.T) = "w:vAlign"
+xmltag(::Columns) = "w:cols"
+xmltag(::Column) = "w:col"
 xmltag(::Style) = "w:style"
 xmltag(::Justification.T) = "w:jc"
 xmltag(::Fonts) = "w:rFonts"
