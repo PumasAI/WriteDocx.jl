@@ -5,11 +5,7 @@
       <w:pPr/>
       <w:r>
         <w:rPr/>
-        <w:t>Before line break</w:t>
-        <w:br w:type="textWrapping"/>
-        <w:t>after line break, before page break</w:t>
-        <w:br w:type="page"/>
-        <w:t>after page break</w:t>
+        <w:t>Section 1</w:t>
       </w:r>
     </w:p>
     <w:p>
@@ -21,13 +17,28 @@
       <w:pPr/>
       <w:r>
         <w:rPr/>
-        <w:t>column 1</w:t>
-        <w:br w:type="column"/>
-        <w:t>column 2</w:t>
+        <w:t>2 columns</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:pPr>
+        <w:sectPr>
+          <w:cols w:equalWidth="true" w:num="2"/>
+        </w:sectPr>
+      </w:pPr>
+    </w:p>
+    <w:p>
+      <w:pPr/>
+      <w:r>
+        <w:rPr/>
+        <w:t>different width columns</w:t>
       </w:r>
     </w:p>
     <w:sectPr>
-      <w:cols w:equalWidth="true" w:num="2"/>
+      <w:cols w:equalWidth="false">
+        <w:col w:w="5760" w:space="720"/>
+        <w:col w:w="2880"/>
+      </w:cols>
     </w:sectPr>
   </w:body>
 </w:document>
