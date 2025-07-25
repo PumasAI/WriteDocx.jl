@@ -1037,17 +1037,39 @@ Base.@kwdef struct Footers
     even::Maybe{Footer} = nothing
 end
 
+"""
+    Column(; [width::Twip, space::Twip])
+
+Describes a single column. `width` sets the column width, and `space` sets the whitespace after the column (before the next column).
+
+See also: [`Columns`](@ref)
+"""
 Base.@kwdef struct Column
     width::Maybe{Twip} = nothing
     space::Maybe{Twip} = nothing
 end
 
+"""
+    Columns(; kwargs...)
+
+Sets the columns for a [`Section`](@ref).
+
+## Keyword arguments
+
+| Keyword | Description |
+| :-- | :-- |
+| `equal::Bool = true` | Whether all columns are equal-width with the same space between every column |
+| `num::Int` | The number of equal-width columns to layout. |
+| `space::`[`Twip`](@ref) | The space between equal-width columns. |
+| `sep::Bool = false` | Sets whether a vertical separator line is drawn between columns |
+| `cols::Vector{`[`Column`](@ref)`}` | A vector of custom columns. `equal`, `num`, and `space` are ignored if `cols` is provided. |
+"""
 Base.@kwdef struct Columns
-    equal::Bool = true
-    sep::Bool = false
-    space::Maybe{Twip} = nothing
     num::Int = 1
+    space::Maybe{Twip} = nothing
+    sep::Bool = false
     cols::Vector{Column} = Column[]
+    equal::Bool = isempty(cols)
 end
 
 Base.@kwdef struct PageMargins
@@ -1957,10 +1979,16 @@ end
 attributes(p::ParagraphStyle) = (("w:val", p.name),)
 attributes(p::RunStyle) = (("w:val", p.name),)
 attributes(p::VerticalAlignment.T) = (("w:val", p),)
-attributes(p::Column) = (("w:w", p.width), ("w:space", p.space))
+function attributes(p::Column)
+    attrs = Tuple{String, Any}[]
+    p.width === nothing || push!(attrs, ("w:w", p.width))
+    p.space === nothing || push!(attrs, ("w:space", p.space))
+    return attrs
+end
 function attributes(p::Columns)
     attrs = Tuple{String, Any}[]
     if p.num > 1 && p.equal
+        push!(attrs, ("w:equalWidth", p.equal))
         push!(attrs, ("w:num", p.num))
         p.sep === false || push!(attrs, ("w:sep", p.sep))
         p.space === nothing || push!(attrs, ("w:space", p.space))
