@@ -1072,13 +1072,30 @@ Base.@kwdef struct Columns
     equal::Bool = isempty(cols)
 end
 
+"""
+    PageMargins(; top, right, bottom, left, kwargs...)
+
+Describes page margins in a [`Section`](@ref).
+
+## Keyword arguments
+
+| Keyword | Description |
+| :-- | :-- |
+| `top::`[`Twip`](@ref) | The top margin. |
+| `right::`[`Twip`](@ref) | The right margin. |
+| `bottom::`[`Twip`](@ref) | The bottom margin. |
+| `left::`[`Twip`](@ref) | The left margin. |
+| `header::`[`Twip`](@ref)`=Twip(0)` | The header margin. |
+| `footer::`[`Twip`](@ref)`=Twip(0)` | The footer margin. |
+| `gutter::`[`Twip`](@ref)`=Twip(0)` | The gutter margin. |
+"""
 Base.@kwdef struct PageMargins
     top::Twip
     right::Twip
     bottom::Twip
     left::Twip
-    header::Twip = top
-    footer::Twip = bottom
+    header::Twip = Twip(0)
+    footer::Twip = Twip(0)
     gutter::Twip = Twip(0)
 end
 
