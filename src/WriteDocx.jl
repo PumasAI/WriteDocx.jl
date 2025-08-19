@@ -1038,7 +1038,7 @@ Base.@kwdef struct Footers
 end
 
 """
-    Column(; [width::Twip, space::Twip])
+    Column(; [width, space])
 
 Describes a single column. `width` sets the column width, and `space` sets the whitespace after the column (before the next column).
 
