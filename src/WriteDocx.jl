@@ -1058,18 +1058,34 @@ Sets the columns for a [`Section`](@ref).
 
 | Keyword | Description |
 | :-- | :-- |
-| `equal::Bool = true` | Whether all columns are equal-width with the same space between every column |
-| `num::Int` | The number of equal-width columns to layout. |
-| `space::`[`Twip`](@ref) | The space between equal-width columns. |
+| `equal::Bool = true` | Sets all columns to be equal-width with `space` between every column |
+| `num::Int` | The number of columns to layout. Ignored if `equal==false`. |
+| `space::`[`Twip`](@ref) | The space between columns. Ignored if `equal==false`. |
 | `sep::Bool = false` | Sets whether a vertical separator line is drawn between columns |
-| `cols::Vector{`[`Column`](@ref)`}` | A vector of custom columns. `equal`, `num`, and `space` are ignored if `cols` is provided. |
+| `cols::Vector{`[`Column`](@ref)`}` | A vector of custom columns. May not be specified with `equal==true`. |
 """
-Base.@kwdef struct Columns
-    num::Int = 1
-    space::Maybe{Twip} = nothing
-    sep::Bool = false
-    cols::Vector{Column} = Column[]
-    equal::Bool = isempty(cols)
+struct Columns
+    num::Int
+    space::Maybe{Twip}
+    sep::Bool
+    cols::Vector{Column}
+    equal::Bool
+
+    function Columns(;kwargs...)
+        sd = setdiff(kwargs, (:num, :space, :sep, :cols, :equal))
+        isempty(sd) || throw(ArgumentError("got unsupported keyword argument(s): $(sd)"))
+        if haskey(kwargs, :cols) && haskey(kwargs, :equal) && kwargs[:equal]
+            throw(ArgumentError("keyword arguments \"cols\" and \"equal\" (or equal=true) are mutually incompatible. If \"cols\" is given, \"equal\" must be false or not defined"))
+        elseif !haskey(kwargs, :cols) && haskey(kwargs, :equal) && !kwargs[:equal]
+            throw(ArgumentError("\"cols\" must be defined/non-empty when \"equal=false\""))
+        end
+
+        return new(
+            get(kwargs, :num, 1),
+            get(kwargs, :space, nothing),
+            get(kwargs, :cols, Column[]),
+            get(kwargs, :equal, true))
+    end
 end
 
 """
