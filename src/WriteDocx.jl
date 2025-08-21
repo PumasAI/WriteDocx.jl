@@ -1079,13 +1079,14 @@ struct Columns
         elseif !haskey(kwargs, :cols) && haskey(kwargs, :equal) && !kwargs[:equal]
             throw(ArgumentError("\"cols\" must be defined/non-empty when \"equal=false\""))
         end
+        haskey(kwargs, :cols) && isempty(kwargs[:cols]) && throw(ArgumentError("\"cols\" must not be empty"))
 
         return new(
             get(kwargs, :num, 1),
             get(kwargs, :space, nothing),
             get(kwargs, :sep, false),
             get(kwargs, :cols, Column[]),
-            get(kwargs, :equal, true))
+            get(kwargs, :equal, !haskey(kwargs, :cols)))
     end
 end
 
