@@ -1072,7 +1072,7 @@ struct Columns
     equal::Bool
 
     function Columns(;kwargs...)
-        sd = setdiff(kwargs, (:num, :space, :sep, :cols, :equal))
+        sd = setdiff(keys(kwargs), (:num, :space, :sep, :cols, :equal))
         isempty(sd) || throw(ArgumentError("got unsupported keyword argument(s): $(sd)"))
         if haskey(kwargs, :cols) && haskey(kwargs, :equal) && kwargs[:equal]
             throw(ArgumentError("keyword arguments \"cols\" and \"equal\" (or equal=true) are mutually incompatible. If \"cols\" is given, \"equal\" must be false or not defined"))
@@ -1083,6 +1083,7 @@ struct Columns
         return new(
             get(kwargs, :num, 1),
             get(kwargs, :space, nothing),
+            get(kwargs, :sep, false),
             get(kwargs, :cols, Column[]),
             get(kwargs, :equal, true))
     end
