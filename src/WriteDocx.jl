@@ -2029,6 +2029,7 @@ function attributes(p::Columns)
         p.space === nothing || push!(attrs, ("w:space", p.space))
     elseif !p.equal
         push!(attrs, ("w:equalWidth", p.equal))
+        push!(attrs, ("w:num", length(p.cols)))
         p.sep === false || push!(attrs, ("w:sep", p.sep))
     end
     return attrs
