@@ -35,7 +35,7 @@
       </w:r>
     </w:p>
     <w:sectPr>
-      <w:cols w:equalWidth="false">
+      <w:cols w:equalWidth="false" w:num="2">
         <w:col w:w="5760" w:space="720"/>
         <w:col w:w="2880"/>
       </w:cols>
