@@ -708,6 +708,62 @@ Base.show(io::IO, ::MIME"image/png", p::PNG) = write(io, p.bytes)
         reftest_docx(doc, "multiple_sections")
     end
 
+    @testset "Columns" begin
+        doc = W.Document(
+            W.Body([
+                W.Section([
+                    W.Paragraph([
+                        W.Run(
+                            [W.Text("No columns " ^ 10)],
+                            W.RunProperties(size = 40W.pt)
+                        )
+                    ])
+                ])
+                W.Section([
+                    W.Paragraph([
+                        W.Run(
+                            [W.Text("2 columns " ^ 20)],
+                            W.RunProperties(size = 40W.pt)
+                        )
+                    ])
+                ]; columns=W.Columns(;num=2))
+                W.Section([
+                    W.Paragraph([
+                        W.Run(
+                            [W.Text("different width columns " ^ 12)],
+                            W.RunProperties(size = 40W.pt)
+                        )
+                    ])
+                    ]; columns=W.Columns(;cols=[W.Column(;width=4W.inch, space=0.5W.inch), W.Column(;width=2W.inch)]))
+            ])
+        )
+
+        reftest_docx(doc, "columns")
+    end
+
+    @testset "Page margins" begin
+        doc = W.Document(
+            W.Body([
+                W.Section([
+                    W.Paragraph([
+                        W.Run([
+                            W.Text("no margins")
+                        ])
+                    ])
+                ])
+                W.Section([
+                    W.Paragraph([
+                        W.Run([
+                            W.Text("thiccc margins")
+                        ])
+                    ])
+                ]; margins=W.PageMargins(;top=2.5W.inch, right=2.5W.inch, bottom=2.5W.inch, left=2.5W.inch))
+            ])
+        )
+
+        reftest_docx(doc, "page_margins")
+    end
+
     @testset "Page sizes" begin
         doc = W.Document(
             W.Body(
@@ -892,6 +948,17 @@ Base.show(io::IO, ::MIME"image/png", p::PNG) = write(io, p.bytes)
                             )
                         ])
                     ])
+                    W.Section([
+                        W.Paragraph([
+                            W.Run(
+                                [
+                                    W.Text("column 1"),
+                                    W.Break(W.BreakType.column),
+                                    W.Text("column 2"),
+                                ]
+                            )
+                        ])
+                    ]; columns=W.Columns(;num=2))
                 ]
             )
         )

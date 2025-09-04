@@ -1038,6 +1038,86 @@ Base.@kwdef struct Footers
 end
 
 """
+    Column(; [width, space])
+
+Describes a single column. `width` sets the column width, and `space` sets the whitespace after the column (before the next column).
+
+See also: [`Columns`](@ref)
+"""
+Base.@kwdef struct Column
+    width::Maybe{Twip} = nothing
+    space::Maybe{Twip} = nothing
+end
+
+"""
+    Columns(; kwargs...)
+
+Sets the columns for a [`Section`](@ref).
+
+## Keyword arguments
+
+| Keyword | Description |
+| :-- | :-- |
+| `equal::Bool = true` | Sets all columns to be equal-width with `space` between every column |
+| `num::Int` | The number of columns to layout. Ignored if `equal==false`. |
+| `space::`[`Twip`](@ref) | The space between columns. Ignored if `equal==false`. |
+| `sep::Bool = false` | Sets whether a vertical separator line is drawn between columns |
+| `cols::Vector{`[`Column`](@ref)`}` | A vector of custom columns. May not be specified with `equal==true`. |
+"""
+struct Columns
+    num::Int
+    space::Maybe{Twip}
+    sep::Bool
+    cols::Vector{Column}
+    equal::Bool
+
+    function Columns(;kwargs...)
+        sd = setdiff(keys(kwargs), (:num, :space, :sep, :cols, :equal))
+        isempty(sd) || throw(ArgumentError("got unsupported keyword argument(s): $(sd)"))
+        if haskey(kwargs, :cols) && haskey(kwargs, :equal) && kwargs[:equal]
+            throw(ArgumentError("keyword arguments \"cols\" and \"equal\" (or equal=true) are mutually incompatible. If \"cols\" is given, \"equal\" must be false or not defined"))
+        elseif !haskey(kwargs, :cols) && haskey(kwargs, :equal) && !kwargs[:equal]
+            throw(ArgumentError("\"cols\" must be defined/non-empty when \"equal=false\""))
+        end
+        haskey(kwargs, :cols) && isempty(kwargs[:cols]) && throw(ArgumentError("\"cols\" must not be empty"))
+
+        return new(
+            get(kwargs, :num, 1),
+            get(kwargs, :space, nothing),
+            get(kwargs, :sep, false),
+            get(kwargs, :cols, Column[]),
+            get(kwargs, :equal, !haskey(kwargs, :cols)))
+    end
+end
+
+"""
+    PageMargins(; top, right, bottom, left, kwargs...)
+
+Describes page margins in a [`Section`](@ref).
+
+## Keyword arguments
+
+| Keyword | Description |
+| :-- | :-- |
+| `top::`[`Twip`](@ref) | The top margin. |
+| `right::`[`Twip`](@ref) | The right margin. |
+| `bottom::`[`Twip`](@ref) | The bottom margin. |
+| `left::`[`Twip`](@ref) | The left margin. |
+| `header::`[`Twip`](@ref)`=Twip(0)` | The header margin. |
+| `footer::`[`Twip`](@ref)`=Twip(0)` | The footer margin. |
+| `gutter::`[`Twip`](@ref)`=Twip(0)` | The gutter margin. |
+"""
+Base.@kwdef struct PageMargins
+    top::Twip
+    right::Twip
+    bottom::Twip
+    left::Twip
+    header::Twip = Twip(0)
+    footer::Twip = Twip(0)
+    gutter::Twip = Twip(0)
+end
+
+"""
     SectionProperties(; kwargs...)
 
 Holds properties for a [`Section`](@ref).
@@ -1047,15 +1127,19 @@ Holds properties for a [`Section`](@ref).
 | Keyword | Description |
 | :-- | :-- |
 | `pagesize::PageSize` | The size of each page in the section. |
+| `margins::PageMargins` | The margins for each page in the section |
 | `valign::PageVerticalAlign.T` | The vertical alignment of content on each page of the section. |
 | `headers::`[`Headers`](@ref) | Defines the header content shown at the top of each page of the section. |
 | `footers::`[`Footers`](@ref) | Defines the footer content shown at the bottom of each page of the section. |
+| `columns::`[`Columns`](@ref) | Configures the columns in the section |
 """
 Base.@kwdef struct SectionProperties
     pagesize::Maybe{PageSize} = nothing
+    margins::Maybe{PageMargins} = nothing
     valign::Maybe{PageVerticalAlign.T} = nothing
     headers::Maybe{Headers} = nothing
     footers::Maybe{Footers} = nothing
+    columns::Maybe{Columns} = nothing
 end
 
 """
@@ -1590,8 +1674,14 @@ function to_xml(body::Body, rels)
         if props.pagesize !== nothing
             E.link!(section_params_node, to_xml(props.pagesize, rels))
         end
+        if props.margins !== nothing
+            E.link!(section_params_node, to_xml(props.margins, rels))
+        end
         if props.valign !== nothing
             E.link!(section_params_node, to_xml(props.valign, rels))
+        end
+        if props.columns !== nothing
+            E.link!(section_params_node, to_xml(props.columns, rels))
         end
         if props.headers !== nothing
             for type in (:default, :first, :even)
@@ -1827,6 +1917,14 @@ function children(p::ParagraphProperties)
     return c
 end
 
+function children(p::Columns)
+    c = []
+    if !p.equal
+        append!(c, p.cols)
+    end
+    return c
+end
+
 function children(p::TableCellProperties)
     c = []
     p.borders === nothing || push!(c, p.borders)
@@ -1899,6 +1997,7 @@ function attributes(t::Union{TableCellBorder, ParagraphBorder})
     return attrs
 end
 attributes(p::PageSize) = (("w:h", p.height), ("w:w", p.width), ("w:orient", p.orientation))
+attributes(p::PageMargins) = (("w:top", p.top), ("w:right", p.right), ("w:bottom", p.bottom), ("w:left", p.left), ("w:header", p.header), ("w:footer", p.footer), ("w:gutter", p.gutter))
 attributes(p::PageVerticalAlign.T) = (("w:val", p),)
 attributes(p::Justification.T) = (("w:val", p),)
 function attributes(s::Style)
@@ -1915,6 +2014,26 @@ end
 attributes(p::ParagraphStyle) = (("w:val", p.name),)
 attributes(p::RunStyle) = (("w:val", p.name),)
 attributes(p::VerticalAlignment.T) = (("w:val", p),)
+function attributes(p::Column)
+    attrs = Tuple{String, Any}[]
+    p.width === nothing || push!(attrs, ("w:w", p.width))
+    p.space === nothing || push!(attrs, ("w:space", p.space))
+    return attrs
+end
+function attributes(p::Columns)
+    attrs = Tuple{String, Any}[]
+    if p.num > 1 && p.equal
+        push!(attrs, ("w:equalWidth", p.equal))
+        push!(attrs, ("w:num", p.num))
+        p.sep === false || push!(attrs, ("w:sep", p.sep))
+        p.space === nothing || push!(attrs, ("w:space", p.space))
+    elseif !p.equal
+        push!(attrs, ("w:equalWidth", p.equal))
+        push!(attrs, ("w:num", length(p.cols)))
+        p.sep === false || push!(attrs, ("w:sep", p.sep))
+    end
+    return attrs
+end
 function attributes(f::Fonts)
     attrs = Tuple{String, Any}[]
     f.ascii === nothing || push!(attrs, ("w:ascii", f.ascii))
@@ -2011,7 +2130,10 @@ function xmltag(t::Tuple{ParagraphBorder, Symbol})
     throw(ArgumentError("Invalid symbol $(repr(sym)), options are :top, :left, :right, :bottom, :between."))
 end
 xmltag(::PageSize) = "w:pgSz"
+xmltag(::PageMargins) = "w:pgMar"
 xmltag(::PageVerticalAlign.T) = "w:vAlign"
+xmltag(::Columns) = "w:cols"
+xmltag(::Column) = "w:col"
 xmltag(::Style) = "w:style"
 xmltag(::Justification.T) = "w:jc"
 xmltag(::Fonts) = "w:rFonts"
