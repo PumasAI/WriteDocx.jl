@@ -713,23 +713,26 @@ Base.show(io::IO, ::MIME"image/png", p::PNG) = write(io, p.bytes)
             W.Body([
                 W.Section([
                     W.Paragraph([
-                        W.Run([
-                            W.Text("Section 1")
-                        ])
+                        W.Run(
+                            [W.Text("No columns " ^ 10)],
+                            W.RunProperties(size = 40W.pt)
+                        )
                     ])
                 ])
                 W.Section([
                     W.Paragraph([
-                        W.Run([
-                            W.Text("2 columns")
-                        ])
+                        W.Run(
+                            [W.Text("2 columns " ^ 20)],
+                            W.RunProperties(size = 40W.pt)
+                        )
                     ])
                 ]; columns=W.Columns(;num=2))
                 W.Section([
                     W.Paragraph([
-                        W.Run([
-                            W.Text("different width columns")
-                        ])
+                        W.Run(
+                            [W.Text("different width columns " ^ 12)],
+                            W.RunProperties(size = 40W.pt)
+                        )
                     ])
                     ]; columns=W.Columns(;cols=[W.Column(;width=4W.inch, space=0.5W.inch), W.Column(;width=2W.inch)]))
             ])
