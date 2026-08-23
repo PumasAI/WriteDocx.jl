@@ -28,10 +28,7 @@ jobs:
           - macos-26-intel # macOS on Intel (x86_64)
           - macos-latest # macOS on Apple Silicon (aarch64)
         exclude:
-          # Julia 1.6 has no macOS aarch64 build; the earliest Julia version
-          # with a macOS aarch64 build is 1.7.0. We deliberately let
-          # `setup-julia` choose the default arch for each runner, so we simply
-          # skip this combination instead of forcing an arch.
+          # Julia 1.6 does not have a native macOS aarch64 build
           - version: '1.6'
             os: macos-latest
     steps:
