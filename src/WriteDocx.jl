@@ -329,15 +329,30 @@ struct AutomaticDefault{T}
     value::Union{Automatic, T}
 end
 
-struct Bold end
-struct Italic end
+struct Bold
+    on::Bool
+end
+
+struct Italic
+    on::Bool
+end
+
+struct Strike
+    on::Bool
+end
 
 Base.convert(::Type{AutomaticDefault{X}}, x::X) where X = AutomaticDefault{X}(x)
 Base.convert(::Type{AutomaticDefault{X}}, ::Automatic) where X = AutomaticDefault{X}(automatic)
 
-struct Underline
-    color::AutomaticDefault{HexColor}
-    pattern::UnderlinePattern.T
+"""
+    Underline(; color = automatic, pattern = UnderlinePattern.single)
+
+Specifies how text is underlined. Use `pattern = UnderlinePattern.none` to
+switch off an underline inherited from a style.
+"""
+Base.@kwdef struct Underline
+    color::AutomaticDefault{HexColor} = automatic
+    pattern::UnderlinePattern.T = UnderlinePattern.single
 end
 
 struct Color
@@ -652,6 +667,8 @@ All properties are optional.
 | `fonts::`[`Fonts`](@ref) | The font settings for this text. |
 | `bold::Bool` | Whether text should be bold. Note that this works like a toggle when nested, turning boldness off again the second time it's `true`. |
 | `italic::Bool` | Whether text should be italic. Note that this works like a toggle when nested, turning italic style off again the second time it's `true`. |
+| `strike::Bool` | Whether text should be struck through. Note that this works like a toggle when nested, turning strikethrough off again the second time it's `true`. |
+| `underline::`[`Underline`](@ref) | How the text should be underlined. |
 """
 Base.@kwdef struct RunProperties
     style::Maybe{String} = nothing
@@ -661,6 +678,8 @@ Base.@kwdef struct RunProperties
     fonts::Maybe{Fonts} = nothing
     bold::Maybe{Bool} = nothing
     italic::Maybe{Bool} = nothing
+    strike::Maybe{Bool} = nothing
+    underline::Maybe{Underline} = nothing
 end
 
 """
@@ -756,6 +775,12 @@ An enum that can be either `clear`, `diag_cross`, `diag_stripe`, `horz_cross`, `
 """
 @enumx ShadingPattern clear diag_cross diag_stripe horz_cross horz_stripe nil thin_diag_cross solid
 
+"""
+    Shading(; pattern = ShadingPattern.clear, fill = automatic, color = automatic)
+
+Specifies the background shading of an element, where `fill` is the background
+color, `color` the foreground color of the `pattern` drawn on top of it.
+"""
 Base.@kwdef struct Shading
     pattern::ShadingPattern.T = ShadingPattern.clear
     fill::AutomaticDefault{HexColor} = automatic
@@ -963,6 +988,7 @@ All properties are optional.
 | `margins::TableCellMargins` | The margins of the cell. |
 | `valign::`[`VerticalAlign`](@ref)`.T` | The vertical alignment of the content in the cell. |
 | `hide_mark::Bool` | If `true`, hides the editor mark so that the table cell can fully collapse if it's empty. |
+| `shading::`[`Shading`](@ref) | The shading (background fill and pattern) of the cell. |
 """
 Base.@kwdef struct TableCellProperties
     width::Maybe{TableWidth} = nothing
@@ -972,6 +998,7 @@ Base.@kwdef struct TableCellProperties
     margins::Maybe{TableCellMargins} = nothing
     valign::Maybe{VerticalAlign.T} = nothing
     hide_mark::Maybe{Bool} = nothing # cells can only collapse vertically if this is true, for example to use a cell only for its border
+    shading::Maybe{Shading} = nothing
 end
 
 struct SimpleField
@@ -2206,12 +2233,14 @@ children(_) = ()
 function children(r::RunProperties)
     c = []
     r.style === nothing || push!(c, RunStyle(r.style))
+    r.fonts === nothing || push!(c, r.fonts)
+    r.bold === nothing || push!(c, Bold(r.bold))
+    r.italic === nothing || push!(c, Italic(r.italic))
+    r.strike === nothing || push!(c, Strike(r.strike))
     r.color === nothing || push!(c, Color(r.color))
     r.size === nothing || push!(c, Size(r.size))
+    r.underline === nothing || push!(c, r.underline)
     r.valign === nothing || push!(c, r.valign)
-    r.fonts === nothing || push!(c, r.fonts)
-    r.bold === nothing || push!(c, Bold())
-    r.italic === nothing || push!(c, Italic())
     return c
 end
 
@@ -2246,9 +2275,10 @@ width_attributes(::Automatic) = ("w:type" => "auto", "w:w" => 0)
 function children(p::TableCellProperties)
     c = []
     p.width === nothing || push!(c, xml("w:tcW", width_attributes(p.width)...))
-    p.borders === nothing || push!(c, p.borders)
-    p.vertical_merge === nothing || push!(c, VerticalMerge(p.vertical_merge))
     p.gridspan === nothing || push!(c, GridSpan(p.gridspan))
+    p.vertical_merge === nothing || push!(c, VerticalMerge(p.vertical_merge))
+    p.borders === nothing || push!(c, p.borders)
+    p.shading === nothing || push!(c, p.shading)
     p.margins === nothing || push!(c, p.margins)
     p.valign === nothing || push!(c, p.valign)
     something(p.hide_mark, false) && push!(c, xml("w:hideMark"))
@@ -2305,6 +2335,7 @@ end
 attributes(_) = ()
 attributes(s::Size) = (("w:val", s.size),)
 attributes(u::Underline) = (("w:val", u.pattern), ("w:color", u.color))
+attributes(o::Union{Bold, Italic, Strike}) = o.on ? () : (("w:val", false),)
 attributes(v::VerticalMerge) = (("w:val", v.restart ? "restart" : "continue"),)
 attributes(v::VerticalAlign.T) = (("w:val", v),)
 attributes(c::Color) = (("w:val", c.color),)
@@ -2428,6 +2459,7 @@ xmltag(::Underline) = "w:u"
 xmltag(::Color) = "w:color"
 xmltag(::Bold) = "w:b"
 xmltag(::Italic) = "w:i"
+xmltag(::Strike) = "w:strike"
 xmltag(::ParagraphStyle) = "w:pStyle"
 xmltag(::RunStyle) = "w:rStyle"
 xmltag(::Table) = "w:tbl"

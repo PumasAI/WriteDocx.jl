@@ -14,13 +14,13 @@
         <w:trPr/>
         <w:tc>
           <w:tcPr>
+            <w:vMerge w:val="restart"/>
             <w:tcBorders>
               <w:bottom w:val="single" w:color="000000"/>
               <w:top w:val="single" w:color="000000"/>
               <w:end w:val="single" w:color="000000"/>
               <w:start w:val="single" w:color="000000"/>
             </w:tcBorders>
-            <w:vMerge w:val="restart"/>
             <w:vAlign w:val="center"/>
           </w:tcPr>
           <w:p>
@@ -33,13 +33,13 @@
         </w:tc>
         <w:tc>
           <w:tcPr>
+            <w:gridSpan w:val="2"/>
             <w:tcBorders>
               <w:bottom w:val="single" w:color="00FF00" w:sz="6"/>
               <w:top w:val="single" w:color="FF0000" w:sz="2"/>
               <w:end w:val="single" w:color="FF00FF" w:shadow="true" w:sz="16"/>
               <w:start w:val="single" w:color="0000FF" w:sz="12"/>
             </w:tcBorders>
-            <w:gridSpan w:val="2"/>
           </w:tcPr>
           <w:p>
             <w:pPr/>
@@ -54,13 +54,13 @@
         <w:trPr/>
         <w:tc>
           <w:tcPr>
+            <w:vMerge w:val="continue"/>
             <w:tcBorders>
               <w:bottom w:val="single" w:color="000000"/>
               <w:top w:val="single" w:color="000000"/>
               <w:end w:val="single" w:color="000000"/>
               <w:start w:val="single" w:color="000000"/>
             </w:tcBorders>
-            <w:vMerge w:val="continue"/>
           </w:tcPr>
           <w:p>
             <w:pPr/>

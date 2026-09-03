@@ -206,6 +206,28 @@ Base.show(io::IO, ::MIME"image/png", p::PNG) = write(io, p.bytes)
         reftest_docx(doc, "run_properties")
     end
 
+    @testset "Underline and strike" begin
+        run_with(text, props) = W.Paragraph([W.Run([W.Text(text)], props)])
+
+        doc = W.Document(W.Body([
+            W.Section([
+                run_with("Default underline", W.RunProperties(underline = W.Underline())),
+                run_with("Wavy red underline", W.RunProperties(
+                    underline = W.Underline(
+                        pattern = W.UnderlinePattern.wavy_heavy,
+                        color = W.HexColor("FF0000"),
+                    ),
+                )),
+                run_with("No underline", W.RunProperties(underline = W.Underline(pattern = W.UnderlinePattern.none))),
+                run_with("Struck", W.RunProperties(strike = true)),
+                run_with("Not struck", W.RunProperties(strike = false)),
+                run_with("Not bold, not italic", W.RunProperties(bold = false, italic = false)),
+            ])
+        ]))
+
+        reftest_docx(doc, "underline_and_strike")
+    end
+
     @testset "Paragraph properties" begin
         doc = W.Document(
             W.Body(
@@ -526,6 +548,34 @@ Base.show(io::IO, ::MIME"image/png", p::PNG) = write(io, p.bytes)
         ]))
 
         reftest_docx(doc, "table_justification")
+    end
+
+    @testset "Table cell shading" begin
+        cell(text, shading) = W.TableCell(
+            [W.Paragraph([W.Run([W.Text(text)])])],
+            W.TableCellProperties(shading = shading),
+        )
+
+        doc = W.Document(W.Body([
+            W.Section([
+                W.Table([
+                    W.TableRow([
+                        cell("Yellow background", W.Shading(
+                            pattern = W.ShadingPattern.clear,
+                            fill = W.HexColor("FFFF00"),
+                        )),
+                        cell("Green cross on blue", W.Shading(
+                            pattern = W.ShadingPattern.diag_cross,
+                            fill = W.HexColor("0000FF"),
+                            color = W.HexColor("00FF00"),
+                        )),
+                        cell("Unshaded", nothing),
+                    ]),
+                ]),
+            ])
+        ]))
+
+        reftest_docx(doc, "table_cell_shading")
     end
 
     @testset "Table hide mark" begin
