@@ -77,6 +77,16 @@ function reftest_docx(doc::W.Document, reference_name)
     return
 end
 
+# `@test_throws "message"` only matches an error message from Julia 1.8 on
+function error_message(f)
+    try
+        f()
+    catch e
+        return sprint(showerror, e)
+    end
+    error("Expected an error but none was thrown.")
+end
+
 struct SVG
     svg::String
 end
@@ -385,6 +395,110 @@ Base.show(io::IO, ::MIME"image/png", p::PNG) = write(io, p.bytes)
         )
 
         reftest_docx(doc, "basic_table")
+    end
+
+    @testset "Table width and layout" begin
+        cell(string, width) = W.TableCell(
+            [W.Paragraph([W.Run([W.Text(string)])])],
+            W.TableCellProperties(width = width),
+        )
+
+        doc = W.Document(
+            W.Body([
+                W.Section([
+                    W.Table(
+                        [W.TableRow([cell("A", 3 * W.cm), cell("B", 9 * W.cm)])];
+                        grid = [3 * W.cm, 9 * W.cm],
+                        width = 12 * W.cm,
+                        layout = W.TableLayout.fixed,
+                        spacing = W.Twip(50),
+                    ),
+                    W.Table(
+                        [W.TableRow([cell("C", 25 * W.percent), cell("D", 75 * W.percent)])];
+                        width = 100 * W.percent,
+                        layout = W.TableLayout.autofit,
+                    ),
+                    W.Table(
+                        [W.TableRow([cell("E", W.automatic)])];
+                        width = W.automatic,
+                    ),
+                ]),
+            ]),
+        )
+
+        reftest_docx(doc, "table_width_and_layout")
+    end
+
+    @testset "Tab stops" begin
+        stops = [
+            W.TabStop(4 * W.cm, alignment = W.TabAlignment.stop, leader = W.TabLeader.dot),
+            W.TabStop(8 * W.cm, alignment = W.TabAlignment.center),
+            W.TabStop(12 * W.cm, alignment = W.TabAlignment.decimal, leader = W.TabLeader.underscore),
+        ]
+
+        doc = W.Document(
+            W.Body([
+                W.Section([
+                    W.Paragraph(
+                        [W.Run([
+                            W.Text("start"),
+                            W.Tab(),
+                            W.Text("stop"),
+                            W.Tab(),
+                            W.Text("center"),
+                            W.Tab(),
+                            W.Text("12.5"),
+                        ])],
+                        W.ParagraphProperties(tabs = stops),
+                    ),
+                ]),
+            ]),
+        )
+
+        reftest_docx(doc, "tab_stops")
+    end
+
+    @testset "Line spacing" begin
+        paragraph(line) = W.Paragraph(
+            [W.Run([W.Text("The quick brown fox jumps over the lazy dog.")])],
+            W.ParagraphProperties(spacing = W.Spacing(before = 6 * W.pt, line = line)),
+        )
+
+        doc = W.Document(
+            W.Body([
+                W.Section([
+                    paragraph(150 * W.percent),
+                    paragraph(14 * W.pt),
+                    paragraph(W.AtLeast(20 * W.pt)),
+                ]),
+            ]),
+        )
+
+        reftest_docx(doc, "line_spacing")
+    end
+
+    @testset "Bookmarks and links" begin
+        doc = W.Document(
+            W.Body([
+                W.Section([
+                    W.Paragraph([
+                        W.Hyperlink([W.Run([W.Text("Chapter 1")])], anchor = "chapter1"),
+                        W.Run([W.Tab()]),
+                        W.PageReference("chapter1"),
+                    ]),
+                    W.Bookmark("chapter1", [
+                        W.Paragraph([W.Run([W.Text("Chapter 1")])]),
+                        W.Paragraph([W.Run([W.Text("Its content.")])]),
+                    ]),
+                    W.Paragraph([
+                        W.Bookmark("a_position"),
+                        W.Bookmark("a_phrase", [W.Run([W.Text("bookmarked")])]),
+                    ]),
+                ]),
+            ]),
+        )
+
+        reftest_docx(doc, "bookmarks")
     end
 
     @testset "Table justification" begin
@@ -1188,5 +1302,98 @@ Base.show(io::IO, ::MIME"image/png", p::PNG) = write(io, p.bytes)
         @test W.Point(6 * W.cm) / W.Inch(2 * W.cm) ≈ 3.0
         @test 2 * W.inch - 144 * W.pt == 0 * W.inch
         @test -2 * W.inch + 144 * W.pt == 0 * W.inch
+        @test 50 * W.percent == W.Percent(50)
+        @test W.percent * 50 == 50 * W.percent
+    end
+
+    @testset "Table width units" begin
+        table_width(width) = string(only(W.children(W.TableProperties(; width))))
+        cell_width(width) = string(only(W.children(W.TableCellProperties(; width))))
+
+        @test table_width(100 * W.percent) == """<w:tblW w:type="pct" w:w="5000"/>"""
+        @test table_width(50 * W.percent) == """<w:tblW w:type="pct" w:w="2500"/>"""
+        @test table_width(2 * W.inch) == """<w:tblW w:type="dxa" w:w="2880"/>"""
+        @test table_width(W.automatic) == """<w:tblW w:type="auto" w:w="0"/>"""
+        @test table_width(W.TableWidth(2 * W.inch)) == table_width(2 * W.inch)
+        @test cell_width(2 * W.inch) == """<w:tcW w:type="dxa" w:w="2880"/>"""
+        @test cell_width(100 * W.percent) == """<w:tcW w:type="pct" w:w="5000"/>"""
+
+        @test W.Table(W.TableRow[]; grid = [1 * W.inch, 2 * W.cm]).grid ==
+              [W.Twip(1 * W.inch), W.Twip(2 * W.cm)]
+    end
+
+    @testset "Line spacing units" begin
+        line_attributes(line) = Dict(k => W.xmlstring(v) for (k, v) in W.attributes(W.Spacing(; line)))
+
+        @test line_attributes(100 * W.percent) == Dict("w:line" => "240", "w:lineRule" => "auto")
+        @test line_attributes(150 * W.percent) == Dict("w:line" => "360", "w:lineRule" => "auto")
+        @test line_attributes(14 * W.pt) == Dict("w:line" => "280", "w:lineRule" => "exact")
+        @test line_attributes(W.AtLeast(14 * W.pt)) == Dict("w:line" => "280", "w:lineRule" => "atLeast")
+        @test isempty(W.attributes(W.Spacing()))
+    end
+
+    @testset "Tab stops" begin
+        stop_attributes(tabstop) = Dict(k => W.xmlstring(v) for (k, v) in W.attributes(tabstop))
+
+        @test stop_attributes(W.TabStop(3 * W.inch)) ==
+              Dict("w:val" => "start", "w:leader" => "none", "w:pos" => "4320")
+        @test stop_attributes(W.TabStop(3 * W.inch, alignment = W.TabAlignment.stop))["w:val"] == "end"
+        @test stop_attributes(W.TabStop(3 * W.inch, leader = W.TabLeader.middle_dot))["w:leader"] == "middleDot"
+    end
+
+    @testset "Bookmark names" begin
+        @test occursin("contains whitespace", error_message(() -> W.Bookmark("two words")))
+        @test occursin("longer than the 40 characters", error_message(() -> W.Bookmark("a"^41)))
+        @test occursin("contains whitespace", error_message(() -> W.Hyperlink([]; anchor = "two words")))
+        @test occursin("contains whitespace", error_message(() -> W.PageReference("two words")))
+        @test W.Bookmark("a"^40).name == "a"^40
+    end
+
+    @testset "Bookmark placement" begin
+        run_bookmark = W.Bookmark("runs", [W.Run([W.Text("x")])])
+        block_bookmark = W.Bookmark("blocks", [W.Paragraph([W.Run([W.Text("x")])])])
+        empty_bookmark = W.Bookmark("empty")
+
+        @test W.Paragraph([run_bookmark]).children == [run_bookmark]
+        @test W.Section([block_bookmark]).children == [block_bookmark]
+        @test W.Paragraph([empty_bookmark]).children == [empty_bookmark]
+        @test W.Section([empty_bookmark]).children == [empty_bookmark]
+        @test occursin("cannot be placed in a `Paragraph`",
+            error_message(() -> W.Paragraph([block_bookmark])))
+        @test occursin("cannot be placed in a `Section`",
+            error_message(() -> W.Section([run_bookmark])))
+        @test occursin("cannot be placed in a `Paragraph`", error_message(() -> W.Paragraph([
+            W.Bookmark("mixed", [W.Run([W.Text("x")]), W.Paragraph([W.Run([W.Text("y")])])]),
+        ])))
+    end
+
+    @testset "Bookmark errors on save" begin
+        function document(children)
+            W.Document(W.Body([W.Section(children)]))
+        end
+        save(doc) = mktempdir() do dir
+            W.save(joinpath(dir, "test.docx"), doc)
+        end
+
+        duplicate = document([
+            W.Bookmark("twice", [W.Paragraph([W.Run([W.Text("a")])])]),
+            W.Bookmark("twice", [W.Paragraph([W.Run([W.Text("b")])])]),
+        ])
+        @test occursin("\"twice\" is used more than once", error_message(() -> save(duplicate)))
+
+        dangling = document([
+            W.Paragraph([W.Hyperlink([W.Run([W.Text("go")])], anchor = "nowhere")]),
+        ])
+        @test occursin("\"nowhere\"", error_message(() -> save(dangling)))
+
+        in_header = W.Document(W.Body([
+            W.Section(
+                [W.Paragraph([W.PageReference("in_header")])],
+                W.SectionProperties(headers = W.Headers(default = W.Header([
+                    W.Bookmark("in_header", [W.Paragraph([W.Run([W.Text("h")])])]),
+                ]))),
+            ),
+        ]))
+        @test save(in_header) === nothing
     end
 end

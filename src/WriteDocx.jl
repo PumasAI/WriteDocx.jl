@@ -123,6 +123,22 @@ Base.:(/)(l::L, r::Real) where L <: Length = L(l.value / r)
 Base.:(+)(l::L, l2::Length) where L <: Length = L(l.value + convert(L, l2).value)
 Base.:(-)(l::L, l2::Length) where L <: Length = L(l.value - convert(L, l2).value)
 
+"""
+    Percent(value::Float64)
+
+A relative measure for the properties where Word takes a proportion of some other
+quantity instead of an absolute [`Length`](@ref), such as the `width` of a
+[`TableProperties`](@ref) or the `line` of a [`Spacing`](@ref).
+For convenience, the constant `percent` is provided for `Percent(1)`.
+"""
+struct Percent
+    value::Float64
+end
+const percent = Percent(1)
+
+Base.:(*)(x::Real, p::Percent) = Percent(p.value * x)
+Base.:(*)(p::Percent, x::Real) = x * p
+
 const Maybe = Union{Nothing, <:Any}
 
 macro partialkw(expr::Expr)
@@ -215,7 +231,8 @@ struct Text
     text::String
 end
 
-is_inline_element(_) = false
+is_inline_element(x) = is_inline_element(typeof(x))
+is_inline_element(::Type) = false
 is_inline_element(::Type{Text}) = true
 
 @enumx BreakType column page text_wrapping
@@ -227,6 +244,16 @@ end
 is_inline_element(::Type{Break}) = true
 
 Break() = Break(BreakType.text_wrapping)
+
+"""
+    Tab()
+
+A tab character in a [`Run`](@ref), which advances to the next [`TabStop`](@ref)
+of the surrounding [`Paragraph`](@ref).
+"""
+struct Tab end
+
+is_inline_element(::Type{Tab}) = true
 
 struct Size
     size::HalfPoint
@@ -643,9 +670,83 @@ An enum that can be either `start`, `stop`, `center`, `both` or `distribute`.
 """
 @enumx Justification start stop center both distribute
 
+"""
+    AtLeast(length)
+
+A minimum [`Length`](@ref), for properties where Word may grow a measure past the
+given value to fit its content, such as the `line` of a [`Spacing`](@ref).
+"""
+struct AtLeast
+    length::Twip
+end
+
+"""
+    LineSpacing(value)
+
+The height of the lines in a paragraph, which is one of:
+
+  - a [`Percent`](@ref) of single spacing, so `150percent` is one-and-a-half spacing
+  - a [`Length`](@ref), for lines of exactly that height, such as `14pt`
+  - an [`AtLeast`](@ref), for a height that may grow to fit tall content
+
+The bare value can be passed as the `line` of a [`Spacing`](@ref) as well, so
+`line = 150percent` and `line = LineSpacing(150percent)` are equivalent.
+"""
+struct LineSpacing
+    value::Union{Twip, Percent, AtLeast}
+
+    LineSpacing(l::Length) = new(Twip(l))
+    LineSpacing(value::Union{Percent, AtLeast}) = new(value)
+end
+
+Base.convert(::Type{LineSpacing}, value::Union{Length, Percent, AtLeast}) = LineSpacing(value)
+
+"""
+    Spacing(; before = nothing, after = nothing, line = nothing)
+
+Holds the spacing properties of a [`Paragraph`](@ref), where `before` and `after`
+are the space above and below it and `line` is its [`LineSpacing`](@ref).
+"""
 Base.@kwdef struct Spacing
     before::Maybe{Twip} = nothing
     after::Maybe{Twip} = nothing
+    line::Maybe{LineSpacing} = nothing
+end
+
+"""
+    TabAlignment
+
+An enum that can be either `start`, `stop`, `center`, `decimal`, `bar` or `clear`,
+where `clear` removes a tab stop that the paragraph's style defines.
+"""
+@enumx TabAlignment start stop center decimal bar clear
+
+"""
+    TabLeader
+
+An enum that can be either `none`, `dot`, `hyphen`, `underscore`, `heavy` or
+`middle_dot`, the character with which Word fills the space a tab jumps.
+"""
+@enumx TabLeader none dot hyphen underscore heavy middle_dot
+
+"""
+    TabStop(position::Length; alignment = TabAlignment.start, leader = TabLeader.none)
+
+A tab stop of a [`ParagraphProperties`](@ref), where `position` is measured from
+the left margin. A [`Tab`](@ref) in the paragraph's text advances to the next stop,
+filling the jumped space with the `leader` character.
+"""
+struct TabStop
+    position::Twip
+    alignment::TabAlignment.T
+    leader::TabLeader.T
+end
+
+TabStop(position::Length; alignment::TabAlignment.T = TabAlignment.start, leader::TabLeader.T = TabLeader.none) =
+    TabStop(position, alignment, leader)
+
+struct TabStops
+    tabs::Vector{TabStop}
 end
 
 """
@@ -673,6 +774,7 @@ All properties are optional.
 | :-- | :-- |
 | `style::String` | The name of the style applied to this `Paragraph`. |
 | `justification::`[`Justification`](@ref)`.T` | The justification of the paragraph. |
+| `tabs::Vector{`[`TabStop`](@ref)`}` | The tab stops that a [`Tab`](@ref) in this paragraph advances to. |
 """
 Base.@kwdef struct ParagraphProperties
     style::Maybe{String} = nothing
@@ -684,6 +786,7 @@ Base.@kwdef struct ParagraphProperties
     spacing::Maybe{Spacing} = nothing
     borders::Maybe{ParagraphBorders} = nothing
     shading::Maybe{Shading} = nothing
+    tabs::Maybe{Vector{TabStop}} = nothing
 end
 
 """
@@ -755,6 +858,37 @@ Run(children::AbstractVector; kwargs...) = Run(children, RunProperties(; kwargs.
 is_run_element(::Type{Run}) = true
 
 """
+    TableWidth(value)
+
+The width of a [`Table`](@ref) or a [`TableCell`](@ref), which is one of:
+
+  - a [`Percent`](@ref) of the surrounding text column for a table, or of the table
+    for a cell, so `100percent` makes a table fill the column
+  - a [`Length`](@ref), for an absolute width such as `12cm`
+  - `automatic`, which sizes the table or cell to fit its content
+
+The bare value can be passed as a `width` as well, so `width = 100percent` and
+`width = TableWidth(100percent)` are equivalent.
+"""
+struct TableWidth
+    value::Union{Twip, Percent, Automatic}
+
+    TableWidth(l::Length) = new(Twip(l))
+    TableWidth(value::Union{Percent, Automatic}) = new(value)
+end
+
+Base.convert(::Type{TableWidth}, value::Union{Length, Percent, Automatic}) = TableWidth(value)
+
+"""
+    TableLayout
+
+An enum that can be either `autofit` or `fixed`. With `fixed`, Word lays the columns
+out at the widths given by the table's `grid`, with `autofit` it sizes them to their
+content.
+"""
+@enumx TableLayout autofit fixed
+
+"""
     TableProperties(; kwargs...)
 
 Holds properties for a [`Table`](@ref).
@@ -764,11 +898,15 @@ All properties are optional.
 
 | Keyword | Description |
 | :-- | :-- |
+| `width::`[`TableWidth`](@ref) | The width of the table, for example `100percent` to fill the text column. |
+| `layout::`[`TableLayout`](@ref)`.T` | The algorithm with which Word lays the columns out. |
 | `margins::TableLevelCellMargins` | Margins for all cells in the table. |
 | `spacing::Twip` | The space between adjacent cells and the edges of the table. |
 | `justification::`[`Justification`](@ref)`.T` | The justification of the table. |
 """
 Base.@kwdef struct TableProperties
+    width::Maybe{TableWidth} = nothing
+    layout::Maybe{TableLayout.T} = nothing
     margins::Maybe{TableLevelCellMargins} = nothing
     spacing::Maybe{Twip} = nothing
     justification::Maybe{Justification.T} = nothing
@@ -818,6 +956,7 @@ All properties are optional.
 
 | Keyword | Description |
 | :-- | :-- |
+| `width::`[`TableWidth`](@ref) | The width of the cell, for example `50percent` of the table's width. |
 | `borders::TableCellBorders` | The border style of the cell. |
 | `vertical_merge::Bool` | Should be set to `true` if this cell should be merged with the one above it. |
 | `gridspan::Int` | The number of cells this cell should span in horizontal direction. |
@@ -826,6 +965,7 @@ All properties are optional.
 | `hide_mark::Bool` | If `true`, hides the editor mark so that the table cell can fully collapse if it's empty. |
 """
 Base.@kwdef struct TableCellProperties
+    width::Maybe{TableWidth} = nothing
     borders::Maybe{TableCellBorders} = nothing
     vertical_merge::Maybe{Bool} = nothing
     gridspan::Maybe{Int} = nothing
@@ -876,9 +1016,87 @@ struct ComplexFieldEnd end
 
 is_run_element(::Type{ComplexFieldEnd}) = true
 
-is_block_element(x) = false
+"""
+    Bookmark(name::String, children::AbstractVector = [])
 
-is_run_element(x) = false
+Marks its `children` with a bookmark called `name`, which a [`Hyperlink`](@ref) or
+[`PageReference`](@ref) can point at. A bookmark without children marks a position
+in the document rather than a range of content.
+
+Bookmarks can hold run elements, in which case they belong into a [`Paragraph`](@ref),
+or block elements, in which case they go wherever a [`Paragraph`](@ref) can go. Names
+must be unique within a document, contain no whitespace and be at most 40 characters
+long, because Word silently truncates longer names and replaces whitespace with
+underscores, which would break every link pointing at them.
+"""
+struct Bookmark
+    name::String
+    children::Vector{Any}
+
+    function Bookmark(name::AbstractString, children::AbstractVector = [])
+        validate_bookmark_name(name)
+        new(name, convert(Vector{Any}, children))
+    end
+end
+
+is_run_element(b::Bookmark) = all(is_run_element, b.children)
+is_block_element(b::Bookmark) = all(is_block_element, b.children)
+
+"""
+    Hyperlink(children::AbstractVector; anchor::String)
+
+Turns its `children` into a link that jumps to the [`Bookmark`](@ref) called `anchor`,
+which must exist somewhere in the document.
+
+The link is not styled differently from the surrounding text unless a style says so,
+because Word's blue underlined look comes from its built-in `Hyperlink` character style,
+which this package does not add to a document.
+"""
+struct Hyperlink
+    anchor::String
+    children::Vector{Any}
+
+    function Hyperlink(children::AbstractVector; anchor::AbstractString)
+        validate_bookmark_name(anchor)
+        new(anchor, validate_elements(is_run_element, children, :Hyperlink))
+    end
+end
+
+is_run_element(::Type{Hyperlink}) = true
+
+"""
+    PageReference(anchor::String)
+
+Shows the number of the page that the [`Bookmark`](@ref) called `anchor` is on, and
+links to it. Word computes the number when it recalculates the document's fields, so
+it is correct in print and export but may show as empty until then.
+"""
+struct PageReference
+    anchor::String
+
+    function PageReference(anchor::AbstractString)
+        validate_bookmark_name(anchor)
+        new(anchor)
+    end
+end
+
+is_run_element(::Type{PageReference}) = true
+
+function validate_bookmark_name(name::AbstractString)
+    if length(name) > 40
+        error("Bookmark name \"$name\" is longer than the 40 characters Word allows, which would truncate it to \"$(first(name, 40))\".")
+    end
+    if any(isspace, name)
+        error("Bookmark name \"$name\" contains whitespace, which Word would replace with underscores.")
+    end
+    return
+end
+
+is_block_element(x) = is_block_element(typeof(x))
+is_block_element(::Type) = false
+
+is_run_element(x) = is_run_element(typeof(x))
+is_run_element(::Type) = false
 
 """
     Paragraph(children::Vector{Any}, properties::ParagraphProperties)
@@ -933,20 +1151,29 @@ end
 TableRow(cells; kwargs...) = TableRow(cells, TableRowProperties(; kwargs...))
 
 """
-    Table(rows::Vector{TableRow}, properties::TableProperties)
-    Table(rows; kwargs...)
+    Table(rows::Vector{TableRow}, properties::TableProperties; grid = Twip[])
+    Table(rows; grid = Twip[], kwargs...)
 
-A table which can hold a vector of [`TableRow`](@ref)s.
-The second convenience constructor forwards all keyword arguments to [`TableProperties`](@ref).
+A table which can hold a vector of [`TableRow`](@ref)s. The `grid` holds the widths of
+the table's columns, which Word lays the cells out at if `properties.layout` is
+`TableLayout.fixed`, so `grid = [4cm, 2cm]` describes a two-column table.
+The second convenience constructor forwards all remaining keyword arguments to
+[`TableProperties`](@ref).
 """
 struct Table
     rows::Vector{TableRow}
     properties::TableProperties
+    grid::Vector{Twip}
 end
 
 is_block_element(::Type{Table}) = true
 
-Table(rows; kwargs...) = Table(rows, TableProperties(; kwargs...))
+struct TableGrid
+    widths::Vector{Twip}
+end
+
+Table(rows, properties::TableProperties; grid::AbstractVector{<:Length} = Twip[]) = Table(rows, properties, grid)
+Table(rows; grid::AbstractVector{<:Length} = Twip[], kwargs...) = Table(rows, TableProperties(; kwargs...), grid)
 
 @enumx PageOrientation landscape portrait
 
@@ -971,7 +1198,7 @@ end
 function validate_elements(predicate, elements::AbstractVector, target::Symbol)
     elements = convert(Vector{Any}, elements)
     for element in elements
-        if !predicate(typeof(element))
+        if !predicate(element)
             error("Element of type $(typeof(element)) does not satisfy `$predicate` and cannot be placed in a `$target`.")
         end
     end
@@ -1195,6 +1422,7 @@ function save(path, document::Document)
     end
 
     check_styles(document)
+    ids = bookmark_ids(document)
 
     mktempdir() do dir
         rels = gather_rels(document, dir)
@@ -1213,7 +1441,7 @@ function save(path, document::Document)
 
         for (rel, i) in rels
             if rel isa Union{Header,Footer}
-                render_header_or_footer(rel, resolved_rels[i], zipwriter, dir)
+                render_header_or_footer(rel, resolved_rels[i], zipwriter, dir, ids)
             end
         end
 
@@ -1221,7 +1449,7 @@ function save(path, document::Document)
         E.prettyprint(f, styles_xml(document.styles))
 
         f = ZipFile.addfile(zipwriter, "word/document.xml"; method = ZipFile.Deflate)
-        E.prettyprint(f, to_xml(document, rels))
+        E.prettyprint(f, to_xml(document, WriteContext(rels, ids)))
 
         for (root, _, files) in walkdir(dir)
             for file in files
@@ -1237,7 +1465,7 @@ function save(path, document::Document)
     end
 end
 
-function render_header_or_footer(x::Union{Header,Footer}, resolvedrel, zipwriter, zipdir)
+function render_header_or_footer(x::Union{Header,Footer}, resolvedrel, zipwriter, zipdir, ids)
     rels = gather_rels(x, zipdir)
     name = splitext(basename(resolvedrel.target))[1]
     prefix = name * "_"
@@ -1252,7 +1480,7 @@ function render_header_or_footer(x::Union{Header,Footer}, resolvedrel, zipwriter
 
     doc = E.XMLDocument()
 
-    node = to_xml(x, rels)
+    node = to_xml(x, WriteContext(rels, ids))
     E.setroot!(doc, node)
     mkpath(dirname(xmlpath))
     open(xmlpath, "w") do io
@@ -1545,6 +1773,63 @@ function rel_target(i::InlineDrawing{String})
     i.image
 end
 
+struct WriteContext
+    rels::Any
+    bookmark_ids::Dict{String, Int}
+end
+
+# Numbers the bookmarks in the order they appear so that each `w:bookmarkStart` can be
+# paired with its `w:bookmarkEnd`, and errors if a name is used twice or if a link points
+# at a bookmark that the document does not contain
+function bookmark_ids(document::Document)
+    ids = Dict{String, Int}()
+    anchors = Set{String}()
+    visited_parts = IdDict{Any, Nothing}()
+
+    collect_bookmarks!(x) = nothing
+    function collect_bookmarks!(b::Bookmark)
+        if haskey(ids, b.name)
+            error("The bookmark name \"$(b.name)\" is used more than once, but Word identifies a bookmark by its name.")
+        end
+        ids[b.name] = length(ids) + 1
+        return
+    end
+    collect_bookmarks!(h::Hyperlink) = push!(anchors, h.anchor)
+    collect_bookmarks!(p::PageReference) = push!(anchors, p.anchor)
+
+    function walk(x)
+        collect_bookmarks!(x)
+        foreach(walk, children(x))
+        return
+    end
+    function walk(s::Section)
+        foreach(walk, children(s))
+        for group in (s.properties.headers, s.properties.footers)
+            group === nothing && continue
+            for type in (:default, :first, :even)
+                part = getproperty(group, type)
+                part === nothing || walk_part(part)
+            end
+        end
+        return
+    end
+    function walk_part(part)
+        haskey(visited_parts, part) && return
+        visited_parts[part] = nothing
+        foreach(walk, children(part))
+        return
+    end
+
+    walk(document.body)
+
+    undefined = setdiff(anchors, keys(ids))
+    if !isempty(undefined)
+        error("These links point at bookmarks that the document does not contain: $(join(map(repr, sort(collect(undefined))), ", ")).")
+    end
+
+    return ids
+end
+
 function content_types(rels)
     
     io = IOBuffer()
@@ -1654,40 +1939,40 @@ end
 
 to_xml(x) = to_xml(x, nothing)
 
-function to_xml(document::Document, rels)
+function to_xml(document::Document, ctx)
     doc = E.XMLDocument()
     node = xmlnode(document)
     node["xmlns:w"] = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
     node["xmlns:r"] = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
     node["xmlns:wp"] = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
     E.setroot!(doc, node)
-    E.link!(node, to_xml(document.body, rels))
+    E.link!(node, to_xml(document.body, ctx))
     return doc
 end
 
-function to_xml(body::Body, rels)
+function to_xml(body::Body, ctx)
     bodynode = xmlnode(body)
     n_sections = length(body.sections)
     for (i, section) in enumerate(body.sections)
         props = section.properties
         section_params_node = xml("w:sectPr")
         if props.pagesize !== nothing
-            E.link!(section_params_node, to_xml(props.pagesize, rels))
+            E.link!(section_params_node, to_xml(props.pagesize, ctx))
         end
         if props.margins !== nothing
-            E.link!(section_params_node, to_xml(props.margins, rels))
+            E.link!(section_params_node, to_xml(props.margins, ctx))
         end
         if props.valign !== nothing
-            E.link!(section_params_node, to_xml(props.valign, rels))
+            E.link!(section_params_node, to_xml(props.valign, ctx))
         end
         if props.columns !== nothing
-            E.link!(section_params_node, to_xml(props.columns, rels))
+            E.link!(section_params_node, to_xml(props.columns, ctx))
         end
         if props.headers !== nothing
             for type in (:default, :first, :even)
                 x = getproperty(props.headers, type)
                 x === nothing && continue
-                rel_id = rels[x]
+                rel_id = ctx.rels[x]
                 E.link!(section_params_node, xml("w:headerReference", "r:id" => "rId$rel_id", "w:type" => string(type)))
             end
         end
@@ -1695,12 +1980,12 @@ function to_xml(body::Body, rels)
             for type in (:default, :first, :even)
                 x = getproperty(props.footers, type)
                 x === nothing && continue
-                rel_id = rels[x]
+                rel_id = ctx.rels[x]
                 E.link!(section_params_node, xml("w:footerReference", "r:id" => "rId$rel_id", "w:type" => string(type)))
             end
         end
         for child in section.children
-            E.link!(bodynode, to_xml(child, rels))
+            linkall!(bodynode, to_xml(child, ctx))
         end
         if i < n_sections
             # For all but the last section, the section parameters go into an empty
@@ -1714,15 +1999,15 @@ function to_xml(body::Body, rels)
     return bodynode
 end
 
-function to_xml(x, rels)
+function to_xml(x, ctx)
     node = xmlnode(x)
     props = properties(x)
     if props !== nothing
-        linkall!(node, to_xml(props, rels))
+        linkall!(node, to_xml(props, ctx))
     end
     _children = children(x)
     for child in _children
-        linkall!(node, to_xml(child, rels))
+        linkall!(node, to_xml(child, ctx))
     end
     for (attribute_key, attribute) in attributes(x)
         node[attribute_key] = xmlstring(attribute)
@@ -1732,31 +2017,31 @@ end
 
 properties(x) = hasfield(typeof(x), :properties) ? x.properties : nothing
 
-to_xml(s::String, rels) = E.TextNode(s)
+to_xml(s::String, ctx) = E.TextNode(s)
 
-function to_xml(t::TableCellBorders, rels)
+function to_xml(t::TableCellBorders, ctx)
     node = xmlnode(t)
 
-    t.bottom === nothing || E.link!(node, to_xml((t.bottom, :bottom), rels))
-    t.top === nothing || E.link!(node, to_xml((t.top, :top), rels))
-    t.stop === nothing || E.link!(node, to_xml((t.stop, :end), rels))
-    t.start === nothing || E.link!(node, to_xml((t.start, :start), rels))
-    t.tl2br === nothing || E.link!(node, to_xml((t.tl2br, :tl2br), rels))
-    t.tr2bl === nothing || E.link!(node, to_xml((t.tr2bl, :tr2bl), rels))
-    t.inside_h === nothing || E.link!(node, to_xml((t.inside_h, :insideH), rels))
-    t.inside_v === nothing || E.link!(node, to_xml((t.inside_v, :insideV), rels))
+    t.bottom === nothing || E.link!(node, to_xml((t.bottom, :bottom), ctx))
+    t.top === nothing || E.link!(node, to_xml((t.top, :top), ctx))
+    t.stop === nothing || E.link!(node, to_xml((t.stop, :end), ctx))
+    t.start === nothing || E.link!(node, to_xml((t.start, :start), ctx))
+    t.tl2br === nothing || E.link!(node, to_xml((t.tl2br, :tl2br), ctx))
+    t.tr2bl === nothing || E.link!(node, to_xml((t.tr2bl, :tr2bl), ctx))
+    t.inside_h === nothing || E.link!(node, to_xml((t.inside_h, :insideH), ctx))
+    t.inside_v === nothing || E.link!(node, to_xml((t.inside_v, :insideV), ctx))
 
     return node
 end
 
-function to_xml(t::ParagraphBorders, rels)
+function to_xml(t::ParagraphBorders, ctx)
     node = xmlnode(t)
 
-    t.left === nothing || E.link!(node, to_xml((t.left, :left), rels))
-    t.top === nothing || E.link!(node, to_xml((t.top, :top), rels))
-    t.right === nothing || E.link!(node, to_xml((t.right, :right), rels))
-    t.bottom === nothing || E.link!(node, to_xml((t.bottom, :bottom), rels))
-    t.between === nothing || E.link!(node, to_xml((t.between, :between), rels))
+    t.left === nothing || E.link!(node, to_xml((t.left, :left), ctx))
+    t.top === nothing || E.link!(node, to_xml((t.top, :top), ctx))
+    t.right === nothing || E.link!(node, to_xml((t.right, :right), ctx))
+    t.bottom === nothing || E.link!(node, to_xml((t.bottom, :bottom), ctx))
+    t.between === nothing || E.link!(node, to_xml((t.between, :between), ctx))
 
     return node
 end
@@ -1782,6 +2067,9 @@ function linkall!(node, children::AbstractVector)
     end
     return
 end
+
+append_nodes!(nodes, child::E.Node) = push!(nodes, child)
+append_nodes!(nodes, children::AbstractVector) = append!(nodes, children)
 
 xml(name, pairs::Pair{String,<:Any}...) = xml(name, [], pairs...)
 
@@ -1824,9 +2112,9 @@ function get_ablip(i::InlineDrawing{<:SVGWithPNGFallback}, rels)
     return (; ablip, index = index_svg)
 end
 
-function to_xml(i::InlineDrawing, rels)
+function to_xml(i::InlineDrawing, ctx)
 
-    a = get_ablip(i, rels)
+    a = get_ablip(i, ctx.rels)
     ablip = a.ablip
     index = a.index
 
@@ -1868,15 +2156,35 @@ function to_xml(i::InlineDrawing, rels)
     return drawing
 end
 
-function to_xml(c::ComplexField, rels)
+function to_xml(c::ComplexField, ctx)
     [
         xml("w:r", [xml("w:fldChar", "w:fldCharType" => "begin", (c.dirty === nothing ? () : ("w:dirty" => c.dirty,))...)]),
         xml("w:r", [xml("w:instrText", [E.TextNode(" $(c.instruction) ")], "xml:space" => "preserve")]),
         xml("w:r", [xml("w:fldChar", "w:fldCharType" => "separate")]),
     ]
 end
-function to_xml(c::ComplexFieldEnd, rels)
+function to_xml(c::ComplexFieldEnd, ctx)
     xml("w:r", [xml("w:fldChar", "w:fldCharType" => "end")])
+end
+
+function to_xml(b::Bookmark, ctx)
+    id = ctx.bookmark_ids[b.name]
+    nodes = E.Node[xml("w:bookmarkStart", "w:id" => id, "w:name" => b.name)]
+    for child in b.children
+        append_nodes!(nodes, to_xml(child, ctx))
+    end
+    push!(nodes, xml("w:bookmarkEnd", "w:id" => id))
+    return nodes
+end
+
+# Word computes the page number itself, so the field carries no cached result and the
+# `\\h` switch is what turns the number into a link to the bookmark
+function to_xml(p::PageReference, ctx)
+    [
+        xml("w:r", [xml("w:fldChar", "w:fldCharType" => "begin", "w:dirty" => true)]),
+        xml("w:r", [xml("w:instrText", [E.TextNode(" PAGEREF $(p.anchor) \\h ")], "xml:space" => "preserve")]),
+        xml("w:r", [xml("w:fldChar", "w:fldCharType" => "end")]),
+    ]
 end
 
 children(body::Body) = body.sections
@@ -1884,11 +2192,15 @@ children(section::Section) = section.children
 children(paragraph::Paragraph) = paragraph.children
 children(run::Run) = run.children
 children(text::Text) = (text.text,)
-children(table::Table) = table.rows
+children(table::Table) = isempty(table.grid) ? table.rows : [TableGrid(table.grid); table.rows]
 children(tablerow::TableRow) = tablerow.cells
 children(tablecell::TableCell) = tablecell.children
 children(h::Header) = h.children
 children(f::Footer) = f.children
+children(b::Bookmark) = b.children
+children(h::Hyperlink) = h.children
+children(t::TabStops) = t.tabs
+children(g::TableGrid) = [xml("w:gridCol", "w:w" => width) for width in g.widths]
 children(_) = ()
 
 function children(r::RunProperties)
@@ -1908,6 +2220,7 @@ function children(p::ParagraphProperties)
     p.style === nothing || push!(c, ParagraphStyle(p.style))
     p.run_properties === nothing || push!(c, p.run_properties)
     p.justification === nothing || push!(c, p.justification)
+    p.tabs === nothing || push!(c, TabStops(p.tabs))
     p.spacing === nothing || push!(c, p.spacing)
     p.borders === nothing || push!(c, p.borders)
     p.shading === nothing || push!(c, p.shading)
@@ -1925,8 +2238,14 @@ function children(p::Columns)
     return c
 end
 
+width_attributes(w::TableWidth) = width_attributes(w.value)
+width_attributes(l::Twip) = ("w:type" => "dxa", "w:w" => l)
+width_attributes(p::Percent) = ("w:type" => "pct", "w:w" => round(Int, 50 * p.value))
+width_attributes(::Automatic) = ("w:type" => "auto", "w:w" => 0)
+
 function children(p::TableCellProperties)
     c = []
+    p.width === nothing || push!(c, xml("w:tcW", width_attributes(p.width)...))
     p.borders === nothing || push!(c, p.borders)
     p.vertical_merge === nothing || push!(c, VerticalMerge(p.vertical_merge))
     p.gridspan === nothing || push!(c, GridSpan(p.gridspan))
@@ -1937,10 +2256,13 @@ function children(p::TableCellProperties)
 end
 
 function children(p::TableProperties)
+    # the order of these children follows the CT_TblPrBase schema sequence
     c = []
-    p.margins === nothing || push!(c, p.margins)
-    p.spacing === nothing || push!(c, xml("w:tblCellSpacing", "w:w" => p.spacing))
+    p.width === nothing || push!(c, xml("w:tblW", width_attributes(p.width)...))
     p.justification === nothing || push!(c, p.justification)
+    p.spacing === nothing || push!(c, xml("w:tblCellSpacing", "w:type" => "dxa", "w:w" => p.spacing))
+    p.layout === nothing || push!(c, xml("w:tblLayout", "w:type" => p.layout))
+    p.margins === nothing || push!(c, p.margins)
     return c
 end
 
@@ -2063,10 +2385,21 @@ function attributes(s::SimpleField)
     s.dirty === nothing || push!(attrs, ("w:dirty", s.dirty))
     return attrs
 end
+attributes(t::TabStop) = (("w:val", t.alignment), ("w:leader", t.leader), ("w:pos", t.position))
+attributes(h::Hyperlink) = (("w:anchor", h.anchor),)
+
+# `w:line` is a bare number whose unit the accompanying `w:lineRule` gives, where a
+# proportion counts in 240ths of a line and the other rules count in twips
+line_attributes(l::LineSpacing) = line_attributes(l.value)
+line_attributes(p::Percent) = (("w:line", round(Int, 2.4 * p.value)), ("w:lineRule", "auto"))
+line_attributes(l::Twip) = (("w:line", l), ("w:lineRule", "exact"))
+line_attributes(a::AtLeast) = (("w:line", a.length), ("w:lineRule", "atLeast"))
+
 function attributes(s::Spacing)
     attrs = Tuple{String, Any}[]
     s.before === nothing || push!(attrs, ("w:before", s.before))
     s.after === nothing || push!(attrs, ("w:after", s.after))
+    s.line === nothing || append!(attrs, line_attributes(s.line))
     return attrs
 end
 function attributes(s::Shading)
@@ -2141,6 +2474,11 @@ xmltag(::TableCellMargins) = "w:tcMar"
 xmltag(::TableLevelCellMargins) = "w:tblCellMar"
 xmltag(::VerticalAlign.T) = "w:vAlign"
 xmltag(::Break) = "w:br"
+xmltag(::Tab) = "w:tab"
+xmltag(::TabStop) = "w:tab"
+xmltag(::TabStops) = "w:tabs"
+xmltag(::TableGrid) = "w:tblGrid"
+xmltag(::Hyperlink) = "w:hyperlink"
 xmltag(::Header) = "w:hdr"
 xmltag(::Footer) = "w:ftr"
 xmltag(::SimpleField) = "w:fldSimple"
@@ -2164,6 +2502,9 @@ xmlstring(p::Justification.T) = p === Justification.stop ? "end" : string(p)
 xmlstring(l::Length) = string(round(Int, l.value)) # all sizes should be converted at this point and word only wants integers
 xmlstring(v::VerticalAlign.T) = string(v)
 xmlstring(b::BreakType.T) = snake_to_camel(string(b))
+xmlstring(l::TableLayout.T) = string(l)
+xmlstring(t::TabAlignment.T) = t === TabAlignment.stop ? "end" : string(t)
+xmlstring(l::TabLeader.T) = snake_to_camel(string(l))
 xmlstring(b::HeightRule.T) = snake_to_camel(string(b))
 xmlstring(b::ShadingPattern.T) = snake_to_camel(string(b))
 end
