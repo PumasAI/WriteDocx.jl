@@ -419,6 +419,54 @@ Base.show(io::IO, ::MIME"image/png", p::PNG) = write(io, p.bytes)
         reftest_docx(doc, "table_width_and_layout")
     end
 
+    @testset "Tab stops" begin
+        stops = [
+            W.TabStop(4 * W.cm, alignment = W.TabAlignment.stop, leader = W.TabLeader.dot),
+            W.TabStop(8 * W.cm, alignment = W.TabAlignment.center),
+            W.TabStop(12 * W.cm, alignment = W.TabAlignment.decimal, leader = W.TabLeader.underscore),
+        ]
+
+        doc = W.Document(
+            W.Body([
+                W.Section([
+                    W.Paragraph(
+                        [W.Run([
+                            W.Text("start"),
+                            W.Tab(),
+                            W.Text("stop"),
+                            W.Tab(),
+                            W.Text("center"),
+                            W.Tab(),
+                            W.Text("12.5"),
+                        ])],
+                        W.ParagraphProperties(tabs = stops),
+                    ),
+                ]),
+            ]),
+        )
+
+        reftest_docx(doc, "tab_stops")
+    end
+
+    @testset "Line spacing" begin
+        paragraph(line) = W.Paragraph(
+            [W.Run([W.Text("The quick brown fox jumps over the lazy dog.")])],
+            W.ParagraphProperties(spacing = W.Spacing(before = 6 * W.pt, line = line)),
+        )
+
+        doc = W.Document(
+            W.Body([
+                W.Section([
+                    paragraph(150 * W.percent),
+                    paragraph(14 * W.pt),
+                    paragraph(W.AtLeast(20 * W.pt)),
+                ]),
+            ]),
+        )
+
+        reftest_docx(doc, "line_spacing")
+    end
+
     @testset "Table justification" begin
         tbl(just) = W.Table([
             W.TableRow([
@@ -1238,5 +1286,24 @@ Base.show(io::IO, ::MIME"image/png", p::PNG) = write(io, p.bytes)
 
         @test W.Table(W.TableRow[]; grid = [1 * W.inch, 2 * W.cm]).grid ==
               [W.Twip(1 * W.inch), W.Twip(2 * W.cm)]
+    end
+
+    @testset "Line spacing units" begin
+        line_attributes(line) = Dict(k => W.xmlstring(v) for (k, v) in W.attributes(W.Spacing(; line)))
+
+        @test line_attributes(100 * W.percent) == Dict("w:line" => "240", "w:lineRule" => "auto")
+        @test line_attributes(150 * W.percent) == Dict("w:line" => "360", "w:lineRule" => "auto")
+        @test line_attributes(14 * W.pt) == Dict("w:line" => "280", "w:lineRule" => "exact")
+        @test line_attributes(W.AtLeast(14 * W.pt)) == Dict("w:line" => "280", "w:lineRule" => "atLeast")
+        @test isempty(W.attributes(W.Spacing()))
+    end
+
+    @testset "Tab stops" begin
+        stop_attributes(tabstop) = Dict(k => W.xmlstring(v) for (k, v) in W.attributes(tabstop))
+
+        @test stop_attributes(W.TabStop(3 * W.inch)) ==
+              Dict("w:val" => "start", "w:leader" => "none", "w:pos" => "4320")
+        @test stop_attributes(W.TabStop(3 * W.inch, alignment = W.TabAlignment.stop))["w:val"] == "end"
+        @test stop_attributes(W.TabStop(3 * W.inch, leader = W.TabLeader.middle_dot))["w:leader"] == "middleDot"
     end
 end

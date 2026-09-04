@@ -31,4 +31,6 @@ WriteDocx.ShadingPattern
 WriteDocx.VerticalAlign
 WriteDocx.VerticalAlignment
 WriteDocx.TableLayout
+WriteDocx.TabAlignment
+WriteDocx.TabLeader
 ```

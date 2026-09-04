@@ -128,7 +128,7 @@ Base.:(-)(l::L, l2::Length) where L <: Length = L(l.value - convert(L, l2).value
 
 A relative measure for the properties where Word takes a proportion of some other
 quantity instead of an absolute [`Length`](@ref), such as the `width` of a
-[`TableProperties`](@ref).
+[`TableProperties`](@ref) or the `line` of a [`Spacing`](@ref).
 For convenience, the constant `percent` is provided for `Percent(1)`.
 """
 struct Percent
@@ -243,6 +243,16 @@ end
 is_inline_element(::Type{Break}) = true
 
 Break() = Break(BreakType.text_wrapping)
+
+"""
+    Tab()
+
+A tab character in a [`Run`](@ref), which advances to the next [`TabStop`](@ref)
+of the surrounding [`Paragraph`](@ref).
+"""
+struct Tab end
+
+is_inline_element(::Type{Tab}) = true
 
 struct Size
     size::HalfPoint
@@ -659,9 +669,83 @@ An enum that can be either `start`, `stop`, `center`, `both` or `distribute`.
 """
 @enumx Justification start stop center both distribute
 
+"""
+    AtLeast(length)
+
+A minimum [`Length`](@ref), for properties where Word may grow a measure past the
+given value to fit its content, such as the `line` of a [`Spacing`](@ref).
+"""
+struct AtLeast
+    length::Twip
+end
+
+"""
+    LineSpacing(value)
+
+The height of the lines in a paragraph, which is one of:
+
+  - a [`Percent`](@ref) of single spacing, so `150percent` is one-and-a-half spacing
+  - a [`Length`](@ref), for lines of exactly that height, such as `14pt`
+  - an [`AtLeast`](@ref), for a height that may grow to fit tall content
+
+The bare value can be passed as the `line` of a [`Spacing`](@ref) as well, so
+`line = 150percent` and `line = LineSpacing(150percent)` are equivalent.
+"""
+struct LineSpacing
+    value::Union{Twip, Percent, AtLeast}
+
+    LineSpacing(l::Length) = new(Twip(l))
+    LineSpacing(value::Union{Percent, AtLeast}) = new(value)
+end
+
+Base.convert(::Type{LineSpacing}, value::Union{Length, Percent, AtLeast}) = LineSpacing(value)
+
+"""
+    Spacing(; before = nothing, after = nothing, line = nothing)
+
+Holds the spacing properties of a [`Paragraph`](@ref), where `before` and `after`
+are the space above and below it and `line` is its [`LineSpacing`](@ref).
+"""
 Base.@kwdef struct Spacing
     before::Maybe{Twip} = nothing
     after::Maybe{Twip} = nothing
+    line::Maybe{LineSpacing} = nothing
+end
+
+"""
+    TabAlignment
+
+An enum that can be either `start`, `stop`, `center`, `decimal`, `bar` or `clear`,
+where `clear` removes a tab stop that the paragraph's style defines.
+"""
+@enumx TabAlignment start stop center decimal bar clear
+
+"""
+    TabLeader
+
+An enum that can be either `none`, `dot`, `hyphen`, `underscore`, `heavy` or
+`middle_dot`, the character with which Word fills the space a tab jumps.
+"""
+@enumx TabLeader none dot hyphen underscore heavy middle_dot
+
+"""
+    TabStop(position::Length; alignment = TabAlignment.start, leader = TabLeader.none)
+
+A tab stop of a [`ParagraphProperties`](@ref), where `position` is measured from
+the left margin. A [`Tab`](@ref) in the paragraph's text advances to the next stop,
+filling the jumped space with the `leader` character.
+"""
+struct TabStop
+    position::Twip
+    alignment::TabAlignment.T
+    leader::TabLeader.T
+end
+
+TabStop(position::Length; alignment::TabAlignment.T = TabAlignment.start, leader::TabLeader.T = TabLeader.none) =
+    TabStop(position, alignment, leader)
+
+struct TabStops
+    tabs::Vector{TabStop}
 end
 
 """
@@ -689,6 +773,7 @@ All properties are optional.
 | :-- | :-- |
 | `style::String` | The name of the style applied to this `Paragraph`. |
 | `justification::`[`Justification`](@ref)`.T` | The justification of the paragraph. |
+| `tabs::Vector{`[`TabStop`](@ref)`}` | The tab stops that a [`Tab`](@ref) in this paragraph advances to. |
 """
 Base.@kwdef struct ParagraphProperties
     style::Maybe{String} = nothing
@@ -700,6 +785,7 @@ Base.@kwdef struct ParagraphProperties
     spacing::Maybe{Spacing} = nothing
     borders::Maybe{ParagraphBorders} = nothing
     shading::Maybe{Shading} = nothing
+    tabs::Maybe{Vector{TabStop}} = nothing
 end
 
 """
@@ -1952,6 +2038,7 @@ children(tablecell::TableCell) = tablecell.children
 children(h::Header) = h.children
 children(f::Footer) = f.children
 children(g::TableGrid) = [xml("w:gridCol", "w:w" => width) for width in g.widths]
+children(t::TabStops) = t.tabs
 children(_) = ()
 
 function children(r::RunProperties)
@@ -1971,6 +2058,7 @@ function children(p::ParagraphProperties)
     p.style === nothing || push!(c, ParagraphStyle(p.style))
     p.run_properties === nothing || push!(c, p.run_properties)
     p.justification === nothing || push!(c, p.justification)
+    p.tabs === nothing || push!(c, TabStops(p.tabs))
     p.spacing === nothing || push!(c, p.spacing)
     p.borders === nothing || push!(c, p.borders)
     p.shading === nothing || push!(c, p.shading)
@@ -2135,10 +2223,20 @@ function attributes(s::SimpleField)
     s.dirty === nothing || push!(attrs, ("w:dirty", s.dirty))
     return attrs
 end
+attributes(t::TabStop) = (("w:val", t.alignment), ("w:leader", t.leader), ("w:pos", t.position))
+
+# `w:line` is a bare number whose unit the accompanying `w:lineRule` gives, where a
+# proportion counts in 240ths of a line and the other rules count in twips
+line_attributes(l::LineSpacing) = line_attributes(l.value)
+line_attributes(p::Percent) = (("w:line", round(Int, 2.4 * p.value)), ("w:lineRule", "auto"))
+line_attributes(l::Twip) = (("w:line", l), ("w:lineRule", "exact"))
+line_attributes(a::AtLeast) = (("w:line", a.length), ("w:lineRule", "atLeast"))
+
 function attributes(s::Spacing)
     attrs = Tuple{String, Any}[]
     s.before === nothing || push!(attrs, ("w:before", s.before))
     s.after === nothing || push!(attrs, ("w:after", s.after))
+    s.line === nothing || append!(attrs, line_attributes(s.line))
     return attrs
 end
 function attributes(s::Shading)
@@ -2213,6 +2311,9 @@ xmltag(::TableCellMargins) = "w:tcMar"
 xmltag(::TableLevelCellMargins) = "w:tblCellMar"
 xmltag(::VerticalAlign.T) = "w:vAlign"
 xmltag(::Break) = "w:br"
+xmltag(::Tab) = "w:tab"
+xmltag(::TabStop) = "w:tab"
+xmltag(::TabStops) = "w:tabs"
 xmltag(::TableGrid) = "w:tblGrid"
 xmltag(::Header) = "w:hdr"
 xmltag(::Footer) = "w:ftr"
@@ -2238,6 +2339,8 @@ xmlstring(l::Length) = string(round(Int, l.value)) # all sizes should be convert
 xmlstring(v::VerticalAlign.T) = string(v)
 xmlstring(b::BreakType.T) = snake_to_camel(string(b))
 xmlstring(l::TableLayout.T) = string(l)
+xmlstring(t::TabAlignment.T) = t === TabAlignment.stop ? "end" : string(t)
+xmlstring(l::TabLeader.T) = snake_to_camel(string(l))
 xmlstring(b::HeightRule.T) = snake_to_camel(string(b))
 xmlstring(b::ShadingPattern.T) = snake_to_camel(string(b))
 end
