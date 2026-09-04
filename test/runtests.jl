@@ -387,6 +387,38 @@ Base.show(io::IO, ::MIME"image/png", p::PNG) = write(io, p.bytes)
         reftest_docx(doc, "basic_table")
     end
 
+    @testset "Table width and layout" begin
+        cell(string, width) = W.TableCell(
+            [W.Paragraph([W.Run([W.Text(string)])])],
+            W.TableCellProperties(width = width),
+        )
+
+        doc = W.Document(
+            W.Body([
+                W.Section([
+                    W.Table(
+                        [W.TableRow([cell("A", 3 * W.cm), cell("B", 9 * W.cm)])];
+                        grid = [3 * W.cm, 9 * W.cm],
+                        width = 12 * W.cm,
+                        layout = W.TableLayout.fixed,
+                        spacing = W.Twip(50),
+                    ),
+                    W.Table(
+                        [W.TableRow([cell("C", 25 * W.percent), cell("D", 75 * W.percent)])];
+                        width = 100 * W.percent,
+                        layout = W.TableLayout.autofit,
+                    ),
+                    W.Table(
+                        [W.TableRow([cell("E", W.automatic)])];
+                        width = W.automatic,
+                    ),
+                ]),
+            ]),
+        )
+
+        reftest_docx(doc, "table_width_and_layout")
+    end
+
     @testset "Table justification" begin
         tbl(just) = W.Table([
             W.TableRow([
@@ -1188,5 +1220,23 @@ Base.show(io::IO, ::MIME"image/png", p::PNG) = write(io, p.bytes)
         @test W.Point(6 * W.cm) / W.Inch(2 * W.cm) ≈ 3.0
         @test 2 * W.inch - 144 * W.pt == 0 * W.inch
         @test -2 * W.inch + 144 * W.pt == 0 * W.inch
+        @test 50 * W.percent == W.Percent(50)
+        @test W.percent * 50 == 50 * W.percent
+    end
+
+    @testset "Table width units" begin
+        table_width(width) = string(only(W.children(W.TableProperties(; width))))
+        cell_width(width) = string(only(W.children(W.TableCellProperties(; width))))
+
+        @test table_width(100 * W.percent) == """<w:tblW w:type="pct" w:w="5000"/>"""
+        @test table_width(50 * W.percent) == """<w:tblW w:type="pct" w:w="2500"/>"""
+        @test table_width(2 * W.inch) == """<w:tblW w:type="dxa" w:w="2880"/>"""
+        @test table_width(W.automatic) == """<w:tblW w:type="auto" w:w="0"/>"""
+        @test table_width(W.TableWidth(2 * W.inch)) == table_width(2 * W.inch)
+        @test cell_width(2 * W.inch) == """<w:tcW w:type="dxa" w:w="2880"/>"""
+        @test cell_width(100 * W.percent) == """<w:tcW w:type="pct" w:w="5000"/>"""
+
+        @test W.Table(W.TableRow[]; grid = [1 * W.inch, 2 * W.cm]).grid ==
+              [W.Twip(1 * W.inch), W.Twip(2 * W.cm)]
     end
 end

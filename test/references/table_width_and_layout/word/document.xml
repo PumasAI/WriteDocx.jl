@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+  <w:body>
+    <w:tbl>
+      <w:tblPr>
+        <w:tblW w:type="dxa" w:w="6803"/>
+        <w:tblCellSpacing w:type="dxa" w:w="50"/>
+        <w:tblLayout w:type="fixed"/>
+      </w:tblPr>
+      <w:tblGrid>
+        <w:gridCol w:w="1701"/>
+        <w:gridCol w:w="5102"/>
+      </w:tblGrid>
+      <w:tr>
+        <w:trPr/>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:type="dxa" w:w="1701"/>
+          </w:tcPr>
+          <w:p>
+            <w:pPr/>
+            <w:r>
+              <w:rPr/>
+              <w:t>A</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:type="dxa" w:w="5102"/>
+          </w:tcPr>
+          <w:p>
+            <w:pPr/>
+            <w:r>
+              <w:rPr/>
+              <w:t>B</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+    </w:tbl>
+    <w:tbl>
+      <w:tblPr>
+        <w:tblW w:type="pct" w:w="5000"/>
+        <w:tblLayout w:type="autofit"/>
+      </w:tblPr>
+      <w:tr>
+        <w:trPr/>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:type="pct" w:w="1250"/>
+          </w:tcPr>
+          <w:p>
+            <w:pPr/>
+            <w:r>
+              <w:rPr/>
+              <w:t>C</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:type="pct" w:w="3750"/>
+          </w:tcPr>
+          <w:p>
+            <w:pPr/>
+            <w:r>
+              <w:rPr/>
+              <w:t>D</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+    </w:tbl>
+    <w:tbl>
+      <w:tblPr>
+        <w:tblW w:type="auto" w:w="0"/>
+      </w:tblPr>
+      <w:tr>
+        <w:trPr/>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:type="auto" w:w="0"/>
+          </w:tcPr>
+          <w:p>
+            <w:pPr/>
+            <w:r>
+              <w:rPr/>
+              <w:t>E</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+    </w:tbl>
+    <w:sectPr/>
+  </w:body>
+</w:document>

@@ -123,6 +123,22 @@ Base.:(/)(l::L, r::Real) where L <: Length = L(l.value / r)
 Base.:(+)(l::L, l2::Length) where L <: Length = L(l.value + convert(L, l2).value)
 Base.:(-)(l::L, l2::Length) where L <: Length = L(l.value - convert(L, l2).value)
 
+"""
+    Percent(value::Float64)
+
+A relative measure for the properties where Word takes a proportion of some other
+quantity instead of an absolute [`Length`](@ref), such as the `width` of a
+[`TableProperties`](@ref).
+For convenience, the constant `percent` is provided for `Percent(1)`.
+"""
+struct Percent
+    value::Float64
+end
+const percent = Percent(1)
+
+Base.:(*)(x::Real, p::Percent) = Percent(p.value * x)
+Base.:(*)(p::Percent, x::Real) = x * p
+
 const Maybe = Union{Nothing, <:Any}
 
 macro partialkw(expr::Expr)
@@ -755,6 +771,37 @@ Run(children::AbstractVector; kwargs...) = Run(children, RunProperties(; kwargs.
 is_run_element(::Type{Run}) = true
 
 """
+    TableWidth(value)
+
+The width of a [`Table`](@ref) or a [`TableCell`](@ref), which is one of:
+
+  - a [`Percent`](@ref) of the surrounding text column for a table, or of the table
+    for a cell, so `100percent` makes a table fill the column
+  - a [`Length`](@ref), for an absolute width such as `12cm`
+  - `automatic`, which sizes the table or cell to fit its content
+
+The bare value can be passed as a `width` as well, so `width = 100percent` and
+`width = TableWidth(100percent)` are equivalent.
+"""
+struct TableWidth
+    value::Union{Twip, Percent, Automatic}
+
+    TableWidth(l::Length) = new(Twip(l))
+    TableWidth(value::Union{Percent, Automatic}) = new(value)
+end
+
+Base.convert(::Type{TableWidth}, value::Union{Length, Percent, Automatic}) = TableWidth(value)
+
+"""
+    TableLayout
+
+An enum that can be either `autofit` or `fixed`. With `fixed`, Word lays the columns
+out at the widths given by the table's `grid`, with `autofit` it sizes them to their
+content.
+"""
+@enumx TableLayout autofit fixed
+
+"""
     TableProperties(; kwargs...)
 
 Holds properties for a [`Table`](@ref).
@@ -764,11 +811,15 @@ All properties are optional.
 
 | Keyword | Description |
 | :-- | :-- |
+| `width::`[`TableWidth`](@ref) | The width of the table, for example `100percent` to fill the text column. |
+| `layout::`[`TableLayout`](@ref)`.T` | The algorithm with which Word lays the columns out. |
 | `margins::TableLevelCellMargins` | Margins for all cells in the table. |
 | `spacing::Twip` | The space between adjacent cells and the edges of the table. |
 | `justification::`[`Justification`](@ref)`.T` | The justification of the table. |
 """
 Base.@kwdef struct TableProperties
+    width::Maybe{TableWidth} = nothing
+    layout::Maybe{TableLayout.T} = nothing
     margins::Maybe{TableLevelCellMargins} = nothing
     spacing::Maybe{Twip} = nothing
     justification::Maybe{Justification.T} = nothing
@@ -818,6 +869,7 @@ All properties are optional.
 
 | Keyword | Description |
 | :-- | :-- |
+| `width::`[`TableWidth`](@ref) | The width of the cell, for example `50percent` of the table's width. |
 | `borders::TableCellBorders` | The border style of the cell. |
 | `vertical_merge::Bool` | Should be set to `true` if this cell should be merged with the one above it. |
 | `gridspan::Int` | The number of cells this cell should span in horizontal direction. |
@@ -826,6 +878,7 @@ All properties are optional.
 | `hide_mark::Bool` | If `true`, hides the editor mark so that the table cell can fully collapse if it's empty. |
 """
 Base.@kwdef struct TableCellProperties
+    width::Maybe{TableWidth} = nothing
     borders::Maybe{TableCellBorders} = nothing
     vertical_merge::Maybe{Bool} = nothing
     gridspan::Maybe{Int} = nothing
@@ -933,20 +986,29 @@ end
 TableRow(cells; kwargs...) = TableRow(cells, TableRowProperties(; kwargs...))
 
 """
-    Table(rows::Vector{TableRow}, properties::TableProperties)
-    Table(rows; kwargs...)
+    Table(rows::Vector{TableRow}, properties::TableProperties; grid = Twip[])
+    Table(rows; grid = Twip[], kwargs...)
 
-A table which can hold a vector of [`TableRow`](@ref)s.
-The second convenience constructor forwards all keyword arguments to [`TableProperties`](@ref).
+A table which can hold a vector of [`TableRow`](@ref)s. The `grid` holds the widths of
+the table's columns, which Word lays the cells out at if `properties.layout` is
+`TableLayout.fixed`, so `grid = [4cm, 2cm]` describes a two-column table.
+The second convenience constructor forwards all remaining keyword arguments to
+[`TableProperties`](@ref).
 """
 struct Table
     rows::Vector{TableRow}
     properties::TableProperties
+    grid::Vector{Twip}
 end
 
 is_block_element(::Type{Table}) = true
 
-Table(rows; kwargs...) = Table(rows, TableProperties(; kwargs...))
+struct TableGrid
+    widths::Vector{Twip}
+end
+
+Table(rows, properties::TableProperties; grid::AbstractVector{<:Length} = Twip[]) = Table(rows, properties, grid)
+Table(rows; grid::AbstractVector{<:Length} = Twip[], kwargs...) = Table(rows, TableProperties(; kwargs...), grid)
 
 @enumx PageOrientation landscape portrait
 
@@ -1884,11 +1946,12 @@ children(section::Section) = section.children
 children(paragraph::Paragraph) = paragraph.children
 children(run::Run) = run.children
 children(text::Text) = (text.text,)
-children(table::Table) = table.rows
+children(table::Table) = isempty(table.grid) ? table.rows : [TableGrid(table.grid); table.rows]
 children(tablerow::TableRow) = tablerow.cells
 children(tablecell::TableCell) = tablecell.children
 children(h::Header) = h.children
 children(f::Footer) = f.children
+children(g::TableGrid) = [xml("w:gridCol", "w:w" => width) for width in g.widths]
 children(_) = ()
 
 function children(r::RunProperties)
@@ -1925,8 +1988,14 @@ function children(p::Columns)
     return c
 end
 
+width_attributes(w::TableWidth) = width_attributes(w.value)
+width_attributes(l::Twip) = ("w:type" => "dxa", "w:w" => l)
+width_attributes(p::Percent) = ("w:type" => "pct", "w:w" => round(Int, 50 * p.value))
+width_attributes(::Automatic) = ("w:type" => "auto", "w:w" => 0)
+
 function children(p::TableCellProperties)
     c = []
+    p.width === nothing || push!(c, xml("w:tcW", width_attributes(p.width)...))
     p.borders === nothing || push!(c, p.borders)
     p.vertical_merge === nothing || push!(c, VerticalMerge(p.vertical_merge))
     p.gridspan === nothing || push!(c, GridSpan(p.gridspan))
@@ -1937,10 +2006,13 @@ function children(p::TableCellProperties)
 end
 
 function children(p::TableProperties)
+    # the order of these children follows the CT_TblPrBase schema sequence
     c = []
-    p.margins === nothing || push!(c, p.margins)
-    p.spacing === nothing || push!(c, xml("w:tblCellSpacing", "w:w" => p.spacing))
+    p.width === nothing || push!(c, xml("w:tblW", width_attributes(p.width)...))
     p.justification === nothing || push!(c, p.justification)
+    p.spacing === nothing || push!(c, xml("w:tblCellSpacing", "w:type" => "dxa", "w:w" => p.spacing))
+    p.layout === nothing || push!(c, xml("w:tblLayout", "w:type" => p.layout))
+    p.margins === nothing || push!(c, p.margins)
     return c
 end
 
@@ -2141,6 +2213,7 @@ xmltag(::TableCellMargins) = "w:tcMar"
 xmltag(::TableLevelCellMargins) = "w:tblCellMar"
 xmltag(::VerticalAlign.T) = "w:vAlign"
 xmltag(::Break) = "w:br"
+xmltag(::TableGrid) = "w:tblGrid"
 xmltag(::Header) = "w:hdr"
 xmltag(::Footer) = "w:ftr"
 xmltag(::SimpleField) = "w:fldSimple"
@@ -2164,6 +2237,7 @@ xmlstring(p::Justification.T) = p === Justification.stop ? "end" : string(p)
 xmlstring(l::Length) = string(round(Int, l.value)) # all sizes should be converted at this point and word only wants integers
 xmlstring(v::VerticalAlign.T) = string(v)
 xmlstring(b::BreakType.T) = snake_to_camel(string(b))
+xmlstring(l::TableLayout.T) = string(l)
 xmlstring(b::HeightRule.T) = snake_to_camel(string(b))
 xmlstring(b::ShadingPattern.T) = snake_to_camel(string(b))
 end

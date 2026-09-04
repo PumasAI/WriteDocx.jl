@@ -48,3 +48,39 @@ Download `table.docx`:
 ```@raw html
 <a href="../table.docx"><img src="./../../assets/icon_docx.png" width="60">
 ```
+
+## Width and column layout
+
+By default, Word sizes a table and its columns to fit their content.
+A [`TableWidth`](@ref) sets how wide the table itself is, either as a [`Length`](@ref) or as a [`Percent`](@ref) of the surrounding text column.
+The columns follow the widths in the table's `grid` if its [`TableLayout`](@ref) is `fixed`:
+
+```@example
+import WriteDocx as W
+
+function cell(string)
+    W.TableCell([W.Paragraph([W.Run([W.Text(string)])])])
+end
+
+filling = W.Table(
+    [W.TableRow([cell("A"), cell("B")])],
+    width = 100 * W.percent,
+)
+
+fixed = W.Table(
+    [W.TableRow([cell("narrow"), cell("wide")])],
+    grid = [3 * W.cm, 9 * W.cm],
+    width = 12 * W.cm,
+    layout = W.TableLayout.fixed,
+)
+
+doc = W.Document(W.Body([W.Section([filling, fixed])]))
+
+W.save("table_width.docx", doc)
+```
+
+Download `table_width.docx`:
+
+```@raw html
+<a href="../table_width.docx"><img src="./../../assets/icon_docx.png" width="60">
+```
