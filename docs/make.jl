@@ -19,6 +19,7 @@ makedocs(;
         "Examples" => [
             "examples/tables.md",
             "examples/paragraphs.md",
+            "examples/bookmarks.md",
             "examples/drawings.md",
             "examples/headers_and_footers.md",
         ],

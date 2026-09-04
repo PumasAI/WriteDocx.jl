@@ -467,6 +467,30 @@ Base.show(io::IO, ::MIME"image/png", p::PNG) = write(io, p.bytes)
         reftest_docx(doc, "line_spacing")
     end
 
+    @testset "Bookmarks and links" begin
+        doc = W.Document(
+            W.Body([
+                W.Section([
+                    W.Paragraph([
+                        W.Hyperlink([W.Run([W.Text("Chapter 1")])], anchor = "chapter1"),
+                        W.Run([W.Tab()]),
+                        W.PageReference("chapter1"),
+                    ]),
+                    W.Bookmark("chapter1", [
+                        W.Paragraph([W.Run([W.Text("Chapter 1")])]),
+                        W.Paragraph([W.Run([W.Text("Its content.")])]),
+                    ]),
+                    W.Paragraph([
+                        W.Bookmark("a_position"),
+                        W.Bookmark("a_phrase", [W.Run([W.Text("bookmarked")])]),
+                    ]),
+                ]),
+            ]),
+        )
+
+        reftest_docx(doc, "bookmarks")
+    end
+
     @testset "Table justification" begin
         tbl(just) = W.Table([
             W.TableRow([
@@ -1305,5 +1329,59 @@ Base.show(io::IO, ::MIME"image/png", p::PNG) = write(io, p.bytes)
               Dict("w:val" => "start", "w:leader" => "none", "w:pos" => "4320")
         @test stop_attributes(W.TabStop(3 * W.inch, alignment = W.TabAlignment.stop))["w:val"] == "end"
         @test stop_attributes(W.TabStop(3 * W.inch, leader = W.TabLeader.middle_dot))["w:leader"] == "middleDot"
+    end
+
+    @testset "Bookmark names" begin
+        @test_throws "contains whitespace" W.Bookmark("two words")
+        @test_throws "longer than the 40 characters" W.Bookmark("a"^41)
+        @test_throws "contains whitespace" W.Hyperlink([]; anchor = "two words")
+        @test_throws "contains whitespace" W.PageReference("two words")
+        @test W.Bookmark("a"^40).name == "a"^40
+    end
+
+    @testset "Bookmark placement" begin
+        run_bookmark = W.Bookmark("runs", [W.Run([W.Text("x")])])
+        block_bookmark = W.Bookmark("blocks", [W.Paragraph([W.Run([W.Text("x")])])])
+        empty_bookmark = W.Bookmark("empty")
+
+        @test W.Paragraph([run_bookmark]).children == [run_bookmark]
+        @test W.Section([block_bookmark]).children == [block_bookmark]
+        @test W.Paragraph([empty_bookmark]).children == [empty_bookmark]
+        @test W.Section([empty_bookmark]).children == [empty_bookmark]
+        @test_throws "cannot be placed in a `Paragraph`" W.Paragraph([block_bookmark])
+        @test_throws "cannot be placed in a `Section`" W.Section([run_bookmark])
+        @test_throws "cannot be placed in a `Paragraph`" W.Paragraph([
+            W.Bookmark("mixed", [W.Run([W.Text("x")]), W.Paragraph([W.Run([W.Text("y")])])]),
+        ])
+    end
+
+    @testset "Bookmark errors on save" begin
+        function document(children)
+            W.Document(W.Body([W.Section(children)]))
+        end
+        save(doc) = mktempdir() do dir
+            W.save(joinpath(dir, "test.docx"), doc)
+        end
+
+        duplicate = document([
+            W.Bookmark("twice", [W.Paragraph([W.Run([W.Text("a")])])]),
+            W.Bookmark("twice", [W.Paragraph([W.Run([W.Text("b")])])]),
+        ])
+        @test_throws "\"twice\" is used more than once" save(duplicate)
+
+        dangling = document([
+            W.Paragraph([W.Hyperlink([W.Run([W.Text("go")])], anchor = "nowhere")]),
+        ])
+        @test_throws "\"nowhere\"" save(dangling)
+
+        in_header = W.Document(W.Body([
+            W.Section(
+                [W.Paragraph([W.PageReference("in_header")])],
+                W.SectionProperties(headers = W.Headers(default = W.Header([
+                    W.Bookmark("in_header", [W.Paragraph([W.Run([W.Text("h")])])]),
+                ]))),
+            ),
+        ]))
+        @test save(in_header) === nothing
     end
 end
