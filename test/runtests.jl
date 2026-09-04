@@ -77,6 +77,16 @@ function reftest_docx(doc::W.Document, reference_name)
     return
 end
 
+# `@test_throws "message"` only matches an error message from Julia 1.8 on
+function error_message(f)
+    try
+        f()
+    catch e
+        return sprint(showerror, e)
+    end
+    error("Expected an error but none was thrown.")
+end
+
 struct SVG
     svg::String
 end
@@ -1332,10 +1342,10 @@ Base.show(io::IO, ::MIME"image/png", p::PNG) = write(io, p.bytes)
     end
 
     @testset "Bookmark names" begin
-        @test_throws "contains whitespace" W.Bookmark("two words")
-        @test_throws "longer than the 40 characters" W.Bookmark("a"^41)
-        @test_throws "contains whitespace" W.Hyperlink([]; anchor = "two words")
-        @test_throws "contains whitespace" W.PageReference("two words")
+        @test occursin("contains whitespace", error_message(() -> W.Bookmark("two words")))
+        @test occursin("longer than the 40 characters", error_message(() -> W.Bookmark("a"^41)))
+        @test occursin("contains whitespace", error_message(() -> W.Hyperlink([]; anchor = "two words")))
+        @test occursin("contains whitespace", error_message(() -> W.PageReference("two words")))
         @test W.Bookmark("a"^40).name == "a"^40
     end
 
@@ -1348,11 +1358,13 @@ Base.show(io::IO, ::MIME"image/png", p::PNG) = write(io, p.bytes)
         @test W.Section([block_bookmark]).children == [block_bookmark]
         @test W.Paragraph([empty_bookmark]).children == [empty_bookmark]
         @test W.Section([empty_bookmark]).children == [empty_bookmark]
-        @test_throws "cannot be placed in a `Paragraph`" W.Paragraph([block_bookmark])
-        @test_throws "cannot be placed in a `Section`" W.Section([run_bookmark])
-        @test_throws "cannot be placed in a `Paragraph`" W.Paragraph([
+        @test occursin("cannot be placed in a `Paragraph`",
+            error_message(() -> W.Paragraph([block_bookmark])))
+        @test occursin("cannot be placed in a `Section`",
+            error_message(() -> W.Section([run_bookmark])))
+        @test occursin("cannot be placed in a `Paragraph`", error_message(() -> W.Paragraph([
             W.Bookmark("mixed", [W.Run([W.Text("x")]), W.Paragraph([W.Run([W.Text("y")])])]),
-        ])
+        ])))
     end
 
     @testset "Bookmark errors on save" begin
@@ -1367,12 +1379,12 @@ Base.show(io::IO, ::MIME"image/png", p::PNG) = write(io, p.bytes)
             W.Bookmark("twice", [W.Paragraph([W.Run([W.Text("a")])])]),
             W.Bookmark("twice", [W.Paragraph([W.Run([W.Text("b")])])]),
         ])
-        @test_throws "\"twice\" is used more than once" save(duplicate)
+        @test occursin("\"twice\" is used more than once", error_message(() -> save(duplicate)))
 
         dangling = document([
             W.Paragraph([W.Hyperlink([W.Run([W.Text("go")])], anchor = "nowhere")]),
         ])
-        @test_throws "\"nowhere\"" save(dangling)
+        @test occursin("\"nowhere\"", error_message(() -> save(dangling)))
 
         in_header = W.Document(W.Body([
             W.Section(
