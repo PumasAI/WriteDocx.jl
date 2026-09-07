@@ -5,3 +5,4 @@
 *.docx
 test/Manifest.toml
 scratch
+/docs/src/changelog.md
