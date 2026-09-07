@@ -3,6 +3,8 @@ using Documenter
 
 DocMeta.setdocmeta!(WriteDocx, :DocTestSetup, :(using WriteDocx); recursive = true)
 
+cp(joinpath(@__DIR__, "..", "CHANGELOG.md"), joinpath(@__DIR__, "src", "changelog.md"), force = true)
+
 makedocs(;
     modules = [WriteDocx],
     authors = "Julius Krumbiegel <julius.krumbiegel@gmail.com> and contributors",
@@ -24,6 +26,7 @@ makedocs(;
             "examples/headers_and_footers.md",
         ],
         "api.md",
+        "changelog.md",
     ],
 )
 
