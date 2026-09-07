@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.3.0 - 2026-09-07
+
 - Added `Bookmark`, `Hyperlink` and `PageReference` for links and page references within a document [#50](https://github.com/PumasAI/WriteDocx.jl/pull/50).
 - Added `width`, `layout` and `grid` to `Table` and `width` to `TableCell`, along with the `Percent` unit [#50](https://github.com/PumasAI/WriteDocx.jl/pull/50).
 - Added tab stops via `ParagraphProperties(tabs = [TabStop(...)])` [#50](https://github.com/PumasAI/WriteDocx.jl/pull/50).
