@@ -84,3 +84,35 @@ Download `table_width.docx`:
 ```@raw html
 <a href="../table_width.docx"><img src="./../../assets/icon_docx.png" width="60">
 ```
+
+## Cell shading
+
+Use [`Shading`](@ref) on a cell to give it a background color, which unlike
+[`ParagraphProperties`](@ref) shading also covers the cell margins:
+
+```@example
+import WriteDocx as W
+
+function cell(string, fill)
+    paragraph = W.Paragraph([W.Run([W.Text(string)])])
+    return W.TableCell(
+        [paragraph],
+        shading = W.Shading(fill = W.HexColor(fill)),
+        margins = W.TableCellMargins(top = 4 * W.pt, bottom = 4 * W.pt, start = 6 * W.pt, stop = 6 * W.pt),
+    )
+end
+
+header = W.TableRow([cell(name, "D9D9D9") for name in ["Group", "N"]])
+body = [W.TableRow([cell(group, fill), cell(n, fill)])
+        for (group, n, fill) in [("Placebo", "42", "F2F2F2"), ("Active", "39", "FFFFFF")]]
+
+doc = W.Document(W.Body([W.Section([W.Table([header; body])])]))
+
+W.save("table_shading.docx", doc)
+```
+
+Download `table_shading.docx`:
+
+```@raw html
+<a href="../table_shading.docx"><img src="./../../assets/icon_docx.png" width="60">
+```

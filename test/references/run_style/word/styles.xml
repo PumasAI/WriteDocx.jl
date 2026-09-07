@@ -108,8 +108,8 @@
   <w:style w:type="paragraph" w:styleId="Heading5">
     <w:pPr>
       <w:rPr>
-        <w:sz w:val="22"/>
         <w:i/>
+        <w:sz w:val="22"/>
       </w:rPr>
       <w:spacing w:before="120" w:after="80"/>
     </w:pPr>
@@ -128,8 +128,8 @@
   <w:style w:type="paragraph" w:styleId="Heading6">
     <w:pPr>
       <w:rPr>
-        <w:sz w:val="20"/>
         <w:i/>
+        <w:sz w:val="20"/>
       </w:rPr>
       <w:spacing w:before="120" w:after="80"/>
     </w:pPr>
